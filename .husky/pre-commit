@@ -1,0 +1,13 @@
+# shellcheck shell=sh
+npm run lint:md
+
+for tool in actionlint shellcheck; do
+  if command -v "$tool" >/dev/null 2>&1; then
+    case "$tool" in
+      actionlint) npm run lint:actions ;;
+      shellcheck) npm run lint:sh ;;
+    esac
+  else
+    echo "pre-commit: $tool not installed, skipping (CI will run it)."
+  fi
+done

@@ -1,0 +1,30 @@
+# Minimal install: copy to .github/workflows/code-review.yml and set the secret.
+name: "Code Review Bot"
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+  pull_request_review_comment:
+    types: [created]
+  issue_comment:
+    types: [created]
+
+# A called workflow can never hold more permission than its caller, and many
+# repos default GITHUB_TOKEN to read-only - so these have to be declared here or
+# the bot cannot post comments.
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+concurrency:
+  group: code-review-${{ github.event.pull_request.number || github.event.issue.number }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  review:
+    uses: lararosekelley/review-bot/.github/workflows/review.yml@v1
+    secrets:
+      anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}

@@ -1,0 +1,86 @@
+name: "AI Code Review Bot"
+description: "Rigorous, low-noise AI code review on pull requests. Bring an Anthropic API key; repo-specific notes optional."
+author: "Lara Kelley"
+
+branding:
+  icon: "check-circle"
+  color: "purple"
+
+inputs:
+  anthropic-api-key:
+    description: "Anthropic API key. Store it as a repository secret and pass secrets.ANTHROPIC_API_KEY."
+    required: true
+  github-token:
+    description: "Token used to read the PR and post comments. The default job token is enough."
+    required: false
+    default: ${{ github.token }}
+  model:
+    description: "Model id, e.g. claude-opus-5, claude-sonnet-5, claude-haiku-4-5-20251001."
+    required: false
+    default: "claude-opus-5"
+  effort:
+    description: "Reasoning effort: low, medium, high, or xhigh. Empty to leave it unset."
+    required: false
+    default: "high"
+  bot-name:
+    description: "Name the bot signs its summary with."
+    required: false
+    default: "Code Review Bot"
+  repo-notes:
+    description: "Repo-specific instructions appended to the base prompt. Optional; the base prompt discovers the repo on its own without it."
+    required: false
+    default: ""
+  repo-notes-file:
+    description: "Path to a file in the repo holding those instructions, e.g. docs/CODE_REVIEW_BOT.md. Combined with repo-notes if both are set."
+    required: false
+    default: ""
+  extra-allowed-tools:
+    description: "Additional tools to allow, appended to the default set. Comma-separated, no surrounding quotes."
+    required: false
+    default: ""
+  sticky-comment:
+    description: "Reuse one comment per PR instead of adding a new one each run."
+    required: false
+    default: "true"
+  include-fix-links:
+    description: "Add a one-click fix link to each inline finding."
+    required: false
+    default: "true"
+  footer:
+    description: "Line appended to the summary. Empty to omit it."
+    required: false
+    default: "Automated review. Findings are advisory; humans approve PRs."
+
+runs:
+  using: "composite"
+  steps:
+    # The prompt is assembled by a script rather than an inline `run:` block so
+    # shellcheck can lint it: actionlint checks the shell in workflow `run:`
+    # blocks, but action metadata is not a workflow, so anything inline here
+    # would go unchecked. See scripts/assemble-prompt.sh.
+    - id: assemble
+      shell: bash
+      env:
+        BOT_NAME: ${{ inputs.bot-name }}
+        REPO_NOTES: ${{ inputs.repo-notes }}
+        REPO_NOTES_FILE: ${{ inputs.repo-notes-file }}
+        FOOTER: ${{ inputs.footer }}
+        MODEL: ${{ inputs.model }}
+        EFFORT: ${{ inputs.effort }}
+        EXTRA_TOOLS: ${{ inputs.extra-allowed-tools }}
+        PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        PR_TITLE: ${{ github.event.pull_request.title || '' }}
+        PR_DRAFT: ${{ github.event.pull_request.draft || false }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/assemble-prompt.sh"
+
+    - name: Review
+      uses: anthropics/claude-code-action@v1.0.217
+      with:
+        anthropic_api_key: ${{ inputs.anthropic-api-key }}
+        github_token: ${{ inputs.github-token }}
+        use_sticky_comment: ${{ inputs.sticky-comment }}
+        include_fix_links: ${{ inputs.include-fix-links }}
+        track_progress: "true"
+        classify_inline_comments: "true"
+        prompt: ${{ steps.assemble.outputs.prompt }}
+        claude_args: ${{ steps.assemble.outputs.claude-args }}

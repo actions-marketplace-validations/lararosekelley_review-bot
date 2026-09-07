@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  commitlint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # Full history: commitlint needs every commit in the range to lint.
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Lint commit messages
+        uses: wagoid/commitlint-github-action@v6
+        with:
+          configFile: commitlint.config.cjs
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint markdown
+        run: npm run lint:md
+
+      # Pinned, and fetched from the upstream release rather than a third-party
+      # wrapper action: the workflows here are the product, so the thing that
+      # checks them is worth keeping boring.
+      - name: Install actionlint
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTIONLINT_VERSION: 1.7.12
+        run: |
+          gh release download "v$ACTIONLINT_VERSION" --repo rhysd/actionlint \
+            --pattern "actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            --output actionlint.tar.gz
+          tar -xzf actionlint.tar.gz actionlint
+          sudo install -m 0755 actionlint /usr/local/bin/actionlint
+          actionlint --version
+
+      # shellcheck is preinstalled on ubuntu-latest, so actionlint also checks
+      # the shell inside every `run:` block.
+      - name: Lint workflows
+        run: npm run lint:actions
+
+      # action.yml is metadata, not a workflow, so actionlint does not reach the
+      # shell it runs. That shell lives in scripts/ for exactly this reason.
+      - name: Lint shell
+        run: npm run lint:sh

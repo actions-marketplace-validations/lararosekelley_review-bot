@@ -1,0 +1,109 @@
+# Reusable workflow: the whole bot, triggers and gating included.
+#
+# Call it from your repo with a dozen lines - see examples/reusable.yml. If you
+# need to customize the triggers (branch filters, extra events), skip this and
+# use the composite action directly: examples/action.yml.
+name: "Code Review Bot"
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: "Model id."
+        type: string
+        required: false
+        default: "claude-opus-5"
+      effort:
+        description: "Reasoning effort: low, medium, high, xhigh, or empty to leave unset."
+        type: string
+        required: false
+        default: "high"
+      bot-name:
+        type: string
+        required: false
+        default: "Code Review Bot"
+      repo-notes:
+        description: "Repo-specific instructions appended to the base prompt."
+        type: string
+        required: false
+        default: ""
+      repo-notes-file:
+        description: "Path to a file in the repo holding those instructions."
+        type: string
+        required: false
+        default: ""
+      trigger-phrase:
+        description: "Phrase that re-invokes the bot from a PR comment."
+        type: string
+        required: false
+        default: "@bot"
+      allowed-associations:
+        description: >-
+          Who may spend the API key, as a comma-separated list of GitHub author
+          associations with no spaces. Default is repo owner only. For an org
+          repo, OWNER,MEMBER,COLLABORATOR is the usual choice.
+        type: string
+        required: false
+        default: "OWNER"
+      timeout-minutes:
+        type: number
+        required: false
+        default: 20
+      extra-allowed-tools:
+        type: string
+        required: false
+        default: ""
+      footer:
+        type: string
+        required: false
+        default: "Automated review. Findings are advisory; humans approve PRs."
+    secrets:
+      anthropic-api-key:
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+jobs:
+  review:
+    # Gate on author association so a drive-by PR or a stray trigger phrase
+    # never spends the API key. The association lives on a different payload
+    # field per event, and the list is compared comma-delimited so that
+    # CONTRIBUTOR cannot match inside FIRST_TIME_CONTRIBUTOR.
+    if: >-
+      (github.event_name == 'pull_request' &&
+        github.event.pull_request.draft == false &&
+        contains(format(',{0},', inputs.allowed-associations), format(',{0},', github.event.pull_request.author_association))) ||
+      (github.event_name == 'pull_request_review_comment' &&
+        contains(github.event.comment.body, inputs.trigger-phrase) &&
+        contains(format(',{0},', inputs.allowed-associations), format(',{0},', github.event.comment.author_association))) ||
+      (github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        contains(github.event.comment.body, format('{0} review', inputs.trigger-phrase)) &&
+        contains(format(',{0},', inputs.allowed-associations), format(',{0},', github.event.comment.author_association)))
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      # Pinned to the same moving major tag this workflow is released under, so
+      # a caller on @v1 always gets a matching pair. Calling this workflow at
+      # @main instead pairs main's gating with v1's action - use the composite
+      # action directly if you want to track main.
+      - uses: lararosekelley/review-bot@v1
+        with:
+          anthropic-api-key: ${{ secrets.anthropic-api-key }}
+          model: ${{ inputs.model }}
+          effort: ${{ inputs.effort }}
+          bot-name: ${{ inputs.bot-name }}
+          repo-notes: ${{ inputs.repo-notes }}
+          repo-notes-file: ${{ inputs.repo-notes-file }}
+          extra-allowed-tools: ${{ inputs.extra-allowed-tools }}
+          footer: ${{ inputs.footer }}

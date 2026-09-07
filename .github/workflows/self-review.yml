@@ -1,0 +1,68 @@
+# Dogfood: this repo's PRs are reviewed by this repo's bot, at the committed
+# ref rather than a release tag.
+name: "Code Review Bot"
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+  pull_request_review_comment:
+    types: [created]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+concurrency:
+  group: self-review-${{ github.event.pull_request.number || github.event.issue.number }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  review:
+    if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.event.pull_request.author_association == 'OWNER') ||
+      (github.event_name == 'pull_request_review_comment' && github.event.comment.author_association == 'OWNER' && contains(github.event.comment.body, '@bot')) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && github.event.comment.author_association == 'OWNER' && contains(github.event.comment.body, '@bot review'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: ./
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          repo-notes: |
+            ## The stack
+
+            This repo ships the code review bot itself: a composite GitHub Action
+            (`action.yml`), a reusable workflow (`.github/workflows/review.yml`), and the
+            agent's instructions (`prompts/BASE_PROMPT.md`). There is no application code.
+
+            ## What CI already covers, so never mention it
+
+            commitlint (conventional commits with a required scope), markdownlint,
+            actionlint over `.github/workflows/` and `examples/` - which includes shellcheck
+            over every `run:` block - and shellcheck over `scripts/` and the git hooks.
+
+            ## What matters here
+
+            - The prompt is the product. Judge a change to `prompts/BASE_PROMPT.md` on whether
+              it raises signal or adds noise, and on whether it stays repo-agnostic: anything
+              that only applies to one stack belongs in a `REPO_NOTES` example instead.
+            - `scripts/assemble-prompt.sh` interpolates maintainer-controlled input into a
+              prompt. Check that repo notes cannot break out of the heredoc delimiter or inject
+              step outputs, and that nothing untrusted reaches a workflow expression
+              interpolation in `action.yml`, which the runner evaluates before bash sees it.
+              Every variable the script reads must be passed by the action's `env:` block; a
+              missing one is caught only at run time, by `set -u`.
+            - The gating expression in the reusable workflow is the only thing standing between
+              a stranger's comment and the maintainer's API key. Trace it per event.
+            - Inputs documented in the README table must match `action.yml` and
+              `.github/workflows/review.yml`. Drift between the three is a real finding.

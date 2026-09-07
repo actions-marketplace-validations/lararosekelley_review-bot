@@ -1,0 +1,17 @@
+{
+  "name": "review-bot",
+  "private": true,
+  "scripts": {
+    "prepare": "husky",
+    "lint": "npm run lint:md && npm run lint:actions && npm run lint:sh",
+    "lint:md": "markdownlint-cli2",
+    "lint:actions": "actionlint .github/workflows/*.yml examples/*.yml",
+    "lint:sh": "shellcheck scripts/*.sh .husky/commit-msg .husky/pre-commit"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.0.0",
+    "@commitlint/config-conventional": "^21.0.0",
+    "husky": "^9.1.7",
+    "markdownlint-cli2": "^0.23.1"
+  }
+}
