@@ -12,7 +12,7 @@ on:
         description: "Model id."
         type: string
         required: false
-        default: "claude-opus-5"
+        default: "claude-sonnet-5-5"
       effort:
         description: "Reasoning effort: low, medium, high, xhigh, or empty to leave unset."
         type: string

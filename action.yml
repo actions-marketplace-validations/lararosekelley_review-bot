@@ -15,9 +15,9 @@ inputs:
     required: false
     default: ${{ github.token }}
   model:
-    description: "Model id, e.g. claude-opus-5, claude-sonnet-5, claude-haiku-4-5-20251001."
+    description: "Model id, e.g. claude-sonnet-5-5, claude-opus-5-5, claude-haiku-4-5-20251001."
     required: false
-    default: "claude-opus-5"
+    default: "claude-sonnet-5-5"
   effort:
     description: "Reasoning effort: low, medium, high, or xhigh. Empty to leave it unset."
     required: false

@@ -65,18 +65,18 @@ with:
 
 ## Configure
 
-| Input                  | Default           | What it does                                                                                                      |
-| ---------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `model`                | `claude-opus-5`   | Any current model id. `claude-sonnet-5` costs less per PR and is a reasonable default on a busy monorepo.         |
-| `effort`               | `high`            | `low`, `medium`, `high`, `xhigh`, or `""` to leave it unset. `xhigh` is the most thorough and the most expensive. |
-| `bot-name`             | `Code Review Bot` | The name it signs the summary with.                                                                               |
-| `repo-notes-file`      | –                 | Path to your repo-specific notes, e.g. `.github/review-bot/REPO_NOTES.md`.                                        |
-| `repo-notes`           | –                 | The same thing inline, for a few lines you do not want in a file.                                                 |
-| `trigger-phrase`       | `@bot`            | What re-invokes it from a comment.                                                                                |
-| `allowed-associations` | `OWNER`           | Comma-separated author associations allowed to trigger it. No spaces.                                             |
-| `timeout-minutes`      | `20`              | Job timeout.                                                                                                      |
-| `footer`               | advisory notice   | Line appended to the summary. Set to `""` to omit.                                                                |
-| `extra-allowed-tools`  | –                 | Extra tools appended to the allowlist.                                                                            |
+| Input                  | Default             | What it does                                                                                                      |
+| ---------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `model`                | `claude-sonnet-5-5` | Any current model id. `claude-opus-5-5` is more thorough and costs more per PR.                                   |
+| `effort`               | `high`              | `low`, `medium`, `high`, `xhigh`, or `""` to leave it unset. `xhigh` is the most thorough and the most expensive. |
+| `bot-name`             | `Code Review Bot`   | The name it signs the summary with.                                                                               |
+| `repo-notes-file`      | –                   | Path to your repo-specific notes, e.g. `.github/review-bot/REPO_NOTES.md`.                                        |
+| `repo-notes`           | –                   | The same thing inline, for a few lines you do not want in a file.                                                 |
+| `trigger-phrase`       | `@bot`              | What re-invokes it from a comment.                                                                                |
+| `allowed-associations` | `OWNER`             | Comma-separated author associations allowed to trigger it. No spaces.                                             |
+| `timeout-minutes`      | `20`                | Job timeout.                                                                                                      |
+| `footer`               | advisory notice     | Line appended to the summary. Set to `""` to omit.                                                                |
+| `extra-allowed-tools`  | –                   | Extra tools appended to the allowlist.                                                                            |
 
 Need custom triggers - branch filters, a different event set, extra steps in the job? Skip the
 reusable workflow and call the action directly. See [`examples/action.yml`](examples/action.yml).
@@ -114,8 +114,8 @@ what keeps the reviews readable.
 
 ## Costs and limits
 
-- Every review is one API call chain against **your** key. `claude-opus-5` at `xhigh` on a large
-  diff is the expensive option; `claude-sonnet-5` with `effort: ""` is the cheap one.
+- Every review is one API call chain against **your** key. `claude-opus-5-5` at `xhigh` on a large
+  diff is the expensive option; `claude-sonnet-5-5` with `effort: ""` is the cheap one.
 - The default gating exists because a review costs money. Widen `allowed-associations`
   deliberately.
 - Secrets are not available to `pull_request` runs from forked repositories, so the bot does not run
