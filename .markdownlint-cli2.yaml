@@ -8,6 +8,11 @@ globs:
 ignores:
   # Build output and dependencies
   - node_modules/**
+  # Eval output and checkouts (gitignored)
+  - eval/runs/**
+  - eval/work/**
+  - eval/raw/**
+  - eval/cases-private/**
 
 # Rule configuration
 config:

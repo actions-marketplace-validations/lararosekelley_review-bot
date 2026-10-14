@@ -6,7 +6,8 @@
     "lint": "npm run lint:md && npm run lint:actions && npm run lint:sh",
     "lint:md": "markdownlint-cli2",
     "lint:actions": "actionlint .github/workflows/*.yml examples/*.yml",
-    "lint:sh": "shellcheck scripts/*.sh .husky/commit-msg .husky/pre-commit"
+    "lint:sh": "shellcheck scripts/*.sh .husky/commit-msg .husky/pre-commit",
+    "release": "scripts/release.sh"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.0.0",
