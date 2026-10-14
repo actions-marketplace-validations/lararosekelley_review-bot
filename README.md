@@ -1,3 +1,6 @@
+<img src="https://raw.githubusercontent.com/lararosekelley/review-bot/main/assets/logo.svg"
+     width="48" height="48" alt="review-bot logo" />
+
 # review-bot
 
 > A simple, open-source AI code review helper
