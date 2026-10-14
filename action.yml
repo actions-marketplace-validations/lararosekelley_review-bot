@@ -1,4 +1,4 @@
-name: "AI Code Review Bot"
+name: "Low-Noise Code Review"
 description: "Rigorous, low-noise AI code review on pull requests. Bring an Anthropic API key; repo-specific notes optional."
 author: "Lara Kelley"
 
