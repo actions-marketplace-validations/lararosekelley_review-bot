@@ -1,0 +1,23 @@
+{
+  "id": "git-stk-ctl-291",
+  "repo": "lararosekelley/git-stk",
+  "kind": "control",
+  "split": "dev",
+  "pr": {
+    "number": 291,
+    "title": "feat(cli): add --from-path to nav commands so cd can follow a branch",
+    "body": "In a worktree-per-branch layout, moving up the stack is a `cd`, not a checkout - and a program cannot change its parent shell's directory. `--from-path` prints where to go and lets a shell function do the moving; the README carries the snippet.\n\nFor a branch that lives here it checks out and prints `.`, so your current directory is left alone. For one in another worktree it prints that path without moving anything. Without the flag a collision stays an error - there is nothing the caller can act on, and exiting 0 would tell a script the branch changed when it did not.\n\n<!-- git-stk:closes -->\nCloses #281\n<!-- /git-stk:closes -->",
+    "base_sha": "6ce984c15a0153c6a2e774d53233ad492c1106ff",
+    "head_sha": "ecceadd60018090618a3e62f6bde29e4fbf67a6d",
+    "commits": 1
+  },
+  "fix": null,
+  "expected": [],
+  "prior_bot": {
+    "status": "n/a",
+    "comment_ids": [
+      3696048971
+    ],
+    "note": "control; bot left 1 inline and 2 summary comments during review"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "id": "git-stk-ctl-266",
+  "repo": "lararosekelley/git-stk",
+  "kind": "control",
+  "split": "dev",
+  "pr": {
+    "number": 266,
+    "title": "feat(list): separate stacks better in list --all",
+    "body": "feat(list): separate stacks better in list --all\n\n<!-- git-stk:closes -->\nCloses #262\n<!-- /git-stk:closes -->",
+    "base_sha": "b9c12a274041f71a00aadc9946b1a39a720837c8",
+    "head_sha": "b4b770c91afc4aa1e400533a9d50ea8d51c7ac23",
+    "commits": 1
+  },
+  "fix": null,
+  "expected": [],
+  "prior_bot": {
+    "status": "n/a",
+    "comment_ids": [],
+    "note": "control; bot left 0 inline and 1 summary comments during review"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "id": "git-stk-326",
+  "repo": "lararosekelley/git-stk",
+  "kind": "historical",
+  "split": "dev",
+  "pr": {
+    "number": 312,
+    "title": "feat(github): read GitHub's native stacks behind stk.githubStacks",
+    "body": "<!-- git-stk:description -->\nGitHub shipped [native stacked pull requests](https://github.blog/changelog/2026-07-30-stacked-pull-requests-are-now-in-public-preview/) to public preview. The local half of `gh stack` duplicates what git-stk already does; what GitHub has that git-stk cannot produce is the **server-side stack object** - the stack map on every PR, per-layer diffs reviewed in parallel, and atomic stack merge. This makes git-stk first-class there: git-stk stays the local driver, GitHub owns the stack.\n\nAll of it is behind **`stk.githubStacks`, off by default** - the GitHub feature is in public preview, and off means today's behaviour byte for byte. GitLab, Gitea and the demo provider are untouched.\n\n## What it does\n\n- **Reads** the stack: `NativeStack` and `ReviewProvider::native_stack_for`, with a `None` default - the same optional-method pattern as `review_state`, so only `GitHubProvider` implements anything. It shells to `gh api`, so no new dependency, no HTTP client, no credential handling.\n- **Registers** it: `submit --stack`/`--downstack` posts the ordered reviews to `POST /repos/{o}/{r}/stacks`, bottom first - the order the stack lands in. An existing stack is extended via `/stacks/{n}/add` rather than replaced; an unchanged one makes no call.\n- **Merges** it GitHub's way: a stacked pull request cannot go through the endpoint `gh pr merge` uses, so `merge` uses `PUT /pulls/{n}/merge-async` and polls the returned uuid to completion.\n- **Stops retargeting** what GitHub owns: a stacked pull request's base cannot be changed by hand, because GitHub moves each layer itself as the one below lands. `submit` and `cleanup` say so instead of claiming a change git-stk did not make.\n- `repair` prefers the stack GitHub records to the review base and to ancestry - an ordering that was *stated* rather than inferred, survives a wiped `.git/config`, and is still right where a review has since been retargeted.\n\n## Why merge and retarget are in the same PR\n\nRegistering is not additive. I probed it live on `git-stk-test-gh` before writing any of it, and both of these are hard refusals:\n\n```\ngh pr merge      -> This pull request is part of a stack and must be merged using\n                    the asynchronous merge REST API. (mergePullRequest)\ngh pr edit --base -> Cannot change the base branch because the pull request is part\n                    of a stack. (updatePullRequest)\n```\n\nSo registration alone would have handed an opted-in user a broken `git stk merge` **and** a broken `git stk submit`. The three land together or not at all. Findings written up in #306.\n\n## Verified end to end\n\nAgainst real GitHub, with `stk.githubStacks = true`:\n\n```\ngit stk submit --stack   -> created #4 -> main, #5 -> e2e/one, registered #4 #5 as a stack\n                            GET /stacks -> {\"number\":6,\"base\":\"main\",\"layers\":[4,5]}\ngit stk submit --stack   -> idempotent: no re-registration, no retarget attempted\ngit stk merge -y         -> merged #4 via merge-async; GitHub retargeted #5 to main\ngit stk merge -y         -> merged #5; stack complete\n```\n\nTest repo left clean afterwards - branches deleted, no open PRs.\n\n## Not changed\n\nThe local side. `restack`, `absorb`, worktrees, `undo`, and the `branch.<name>.stk*` metadata are all still git-stk's, and the cross-provider stack overview stays - it carries merged and closed history the native map does not, and GitLab and Gitea have no equivalent.\n<!-- /git-stk:description -->\n\n<!-- git-stk:closes -->\nCloses #306\n<!-- /git-stk:closes -->",
+    "base_sha": "ca31c6db9138a7444ea96b4a46d40e3bab4d97cf",
+    "head_sha": "bb07db8196e5cb9e7a53911a2ead137b77b6a854",
+    "commits": 24
+  },
+  "fix": {
+    "pr": 326,
+    "sha": "7cc34272c1505cd708e0e1d755cf971be8e8b2bc"
+  },
+  "expected": [
+    {
+      "path": "src/commands/merge.rs",
+      "line": 447,
+      "window": 5,
+      "alt": [],
+      "description": "checks_not_green_error still recommends `git stk merge --auto`, which this PR makes refuse any review in a GitHub native stack, so the hint answers one refusal with another.",
+      "severity": "low",
+      "visibility": "medium",
+      "location_source": "manual"
+    }
+  ],
+  "prior_bot": {
+    "status": "caught",
+    "comment_ids": [
+      3875933946,
+      3874078374
+    ],
+    "note": "bot showed --auto on a stacked review printing the same hint"
+  }
+}

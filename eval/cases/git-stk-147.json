@@ -1,0 +1,35 @@
+{
+  "id": "git-stk-147",
+  "repo": "lararosekelley/git-stk",
+  "kind": "historical",
+  "split": "dev",
+  "pr": {
+    "number": 130,
+    "title": "fix(cli): offer to close dated PRs",
+    "body": "<!-- git-stk:closes -->\nCloses #126\n<!-- /git-stk:closes -->",
+    "base_sha": "54da11c9ce6a8ca5c070977e4b25e02ae0b5f044",
+    "head_sha": "f6e0007940e62633ddde27ec2993f50f3fe73b56",
+    "commits": 2
+  },
+  "fix": {
+    "pr": 147,
+    "sha": "f91f150b99884ff3acfc40adb6a0fa9ad18a46b9"
+  },
+  "expected": [
+    {
+      "path": "src/commands/submit.rs",
+      "line": 189,
+      "window": 5,
+      "alt": [],
+      "description": "A single-branch submit closes the superseded review and clears the rename marker even though the ledger prune that removes stale rows only runs for a stack-wide submit, orphaning the old row in every other overview.",
+      "severity": "medium",
+      "visibility": "low",
+      "location_source": "blame"
+    }
+  ],
+  "prior_bot": {
+    "status": "n/a",
+    "comment_ids": [],
+    "note": "predates the bot"
+  }
+}

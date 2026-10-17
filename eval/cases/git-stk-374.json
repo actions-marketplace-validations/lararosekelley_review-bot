@@ -1,0 +1,40 @@
+{
+  "id": "git-stk-374",
+  "repo": "lararosekelley/git-stk",
+  "kind": "historical",
+  "split": "dev",
+  "pr": {
+    "number": 372,
+    "title": "feat(tour): plan agent tours with your own agent command",
+    "body": "<!-- git-stk:description -->\nAdds the first agent tour style. `--style agentTour` (or `stk.tourStyle = agentTour`) has an agent plan each review: an overview, the files in reading order as titled steps with a short explanation each, and notes on particular lines.\n\n- The agent is your own command: `stk.tourAgent` or `--agent`, such as `claude -p` or `llm -m <model>`. It holds its own credentials, so git-stk holds none. `src/agent.rs` is the one place it runs: split into words like a simple shell command line (no shell), the request on stdin, the answer from stdout, a 10-minute timeout, and its stderr on failure.\n- The request is the review's description, commits, stack position, and diff (cut short per file and overall; generated files by name only), with the plan format. The answer may wrap the JSON plan in prose, a fence, or a CLI's own `result` envelope.\n- The plan is checked against the diff: unknown paths dropped, each file once, files left out gathered into an \"Other changes\" step, notes only on lines the diff shows. A plan that places nothing, or an agent that fails, leaves that review toured by file role, with a warning.\n- The first agent tour in a repository asks before sending anything and records `stk.tourAgentAllowed` in that repository's config; without a terminal it stops and says how to allow it.\n- Plans are saved per review head and agent command under `.git/stk/tours/plans/`; `--refresh-plan` asks again. `--plan <file>` follows a plan written ahead of time for the review asked for.\n- Each chapter's page data carries the plan: the command that planned it and the provider, model, and effort level the agent reports for itself, the overview, and the notes. The next PR shows them on the page; here the plan drives the step order, titles, and explanations.\n\nVerified with `just test` (word splitting, the runner, plan parsing from prose/fences/envelopes, validation and corrections, the request; integration tests with a fake agent for a planned tour and its cache and `--refresh-plan`, config vs. `--style`, refusing without consent, `--plan`, and an unusable answer or failing agent falling back), `just lint`, and live with `claude -p` on #371 (35 s) and #364 (57 s, 11 files in seven well-ordered steps, ten notes kept, no corrections).\n<!-- /git-stk:description -->",
+    "base_sha": "3a43301ea23689e304a0647544ff4e62ccd113d8",
+    "head_sha": "4704dd414062c1265e0805b3138c017cec981c3b",
+    "commits": 2
+  },
+  "fix": {
+    "pr": 374,
+    "sha": "3b8925280d0b37572195d6153784c032d0129a9b"
+  },
+  "expected": [
+    {
+      "path": "src/tour/mod.rs",
+      "line": 573,
+      "window": 5,
+      "alt": [
+        {
+          "path": "src/tour/mod.rs",
+          "line": 570
+        }
+      ],
+      "description": "The saved agent plan is keyed on the head sha but not the base, so a retargeted review with an unchanged head reuses a plan made for a different diff.",
+      "severity": "low",
+      "visibility": "high",
+      "location_source": "manual"
+    }
+  ],
+  "prior_bot": {
+    "status": "missed",
+    "comment_ids": [],
+    "note": "bot stated the cache key was complete"
+  }
+}

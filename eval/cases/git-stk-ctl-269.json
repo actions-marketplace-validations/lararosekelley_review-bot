@@ -1,0 +1,23 @@
+{
+  "id": "git-stk-ctl-269",
+  "repo": "lararosekelley/git-stk",
+  "kind": "control",
+  "split": "dev",
+  "pr": {
+    "number": 269,
+    "title": "feat(submit): support --desc-file to populate pr description",
+    "body": "feat(submit): support --desc-file to populate pr description\n\n<!-- git-stk:description -->\n# Description\n\nPR enables `--desc-file` as a source to populate a PR description\nwhen submitting via `git stk submit`. Windows/Mac/Linux-friendly\nand understands tilde `~` expansion for `$HOME`.\n<!-- /git-stk:description -->",
+    "base_sha": "975c8c198ab150d2ae3d9b4b72bc9083f409ea96",
+    "head_sha": "26a82f88e07c39200543fc773e8f26747aeb3542",
+    "commits": 4
+  },
+  "fix": null,
+  "expected": [],
+  "prior_bot": {
+    "status": "n/a",
+    "comment_ids": [
+      3597117871
+    ],
+    "note": "control; bot left 1 inline and 1 summary comments during review"
+  }
+}

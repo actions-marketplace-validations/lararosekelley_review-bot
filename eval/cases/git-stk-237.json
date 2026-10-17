@@ -1,0 +1,35 @@
+{
+  "id": "git-stk-237",
+  "repo": "lararosekelley/git-stk",
+  "kind": "historical",
+  "split": "dev",
+  "pr": {
+    "number": 178,
+    "title": "chore(code): stack helper consolidation",
+    "body": "<!-- git-stk:closes -->\nCloses #165\n<!-- /git-stk:closes -->",
+    "base_sha": "51db74966cdc648087de7e4291a8ef53ea777bf8",
+    "head_sha": "99e688cc4696644cb232be71471edc566ff2af46",
+    "commits": 1
+  },
+  "fix": {
+    "pr": 237,
+    "sha": "0410c59ae927af8eed8b11e98efab64c0738fa3e"
+  },
+  "expected": [
+    {
+      "path": "src/stack/mod.rs",
+      "line": 295,
+      "window": 5,
+      "alt": [],
+      "description": "current_stack_branches anchors on stack_root, which is the trunk for a trunk-anchored stack, so it returns every sibling stack off the trunk and PR descriptions list unrelated branches.",
+      "severity": "medium",
+      "visibility": "medium",
+      "location_source": "blame"
+    }
+  ],
+  "prior_bot": {
+    "status": "n/a",
+    "comment_ids": [],
+    "note": "predates the bot"
+  }
+}

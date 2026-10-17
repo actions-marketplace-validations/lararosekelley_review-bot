@@ -1,0 +1,35 @@
+{
+  "id": "git-stk-201",
+  "repo": "lararosekelley/git-stk",
+  "kind": "historical",
+  "split": "dev",
+  "pr": {
+    "number": 55,
+    "title": "feat(cli): remind to run stk setup post-install",
+    "body": "<!-- git-stk:closes -->\nCloses #42\n<!-- /git-stk:closes -->",
+    "base_sha": "032bdf7dd34c2e54edb4ca1a1428659166452903",
+    "head_sha": "bef1ba6264b64a63dcbc29043ca7c3a4500a757d",
+    "commits": 1
+  },
+  "fix": {
+    "pr": 201,
+    "sha": "c7aff691aa7f62a57b0c31b11daf59d16910650e"
+  },
+  "expected": [
+    {
+      "path": "dist-workspace.toml",
+      "line": 25,
+      "window": 5,
+      "alt": [],
+      "description": "install-success-msg contains backticks, and the shell installer prints it as a shell literal, so `git stk setup` is command-substituted and actually run at install time.",
+      "severity": "medium",
+      "visibility": "medium",
+      "location_source": "blame"
+    }
+  ],
+  "prior_bot": {
+    "status": "n/a",
+    "comment_ids": [],
+    "note": "predates the bot"
+  }
+}

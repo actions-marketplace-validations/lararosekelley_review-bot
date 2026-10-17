@@ -1,0 +1,35 @@
+{
+  "id": "git-stk-148",
+  "repo": "lararosekelley/git-stk",
+  "kind": "historical",
+  "split": "dev",
+  "pr": {
+    "number": 132,
+    "title": "chore(cli): add stack lock",
+    "body": "<!-- git-stk:closes -->\nCloses #128\n<!-- /git-stk:closes -->",
+    "base_sha": "25453fff4c9fd4d2ceacddf72c74980a923afdad",
+    "head_sha": "27b0cf2ee2784f69b2dea178b84df24caa76c561",
+    "commits": 1
+  },
+  "fix": {
+    "pr": 148,
+    "sha": "f1c8d65781624bd734aeb747aed0ccc25fe81c41"
+  },
+  "expected": [
+    {
+      "path": "src/lock.rs",
+      "line": 26,
+      "window": 5,
+      "alt": [],
+      "description": "The stack lock lives under the per-worktree git dir, so commands run from different worktrees of one repo take separate locks while mutating the shared branch config.",
+      "severity": "medium",
+      "visibility": "medium",
+      "location_source": "blame"
+    }
+  ],
+  "prior_bot": {
+    "status": "n/a",
+    "comment_ids": [],
+    "note": "predates the bot"
+  }
+}

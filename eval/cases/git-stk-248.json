@@ -1,0 +1,35 @@
+{
+  "id": "git-stk-248",
+  "repo": "lararosekelley/git-stk",
+  "kind": "historical",
+  "split": "dev",
+  "pr": {
+    "number": 130,
+    "title": "fix(cli): offer to close dated PRs",
+    "body": "<!-- git-stk:closes -->\nCloses #126\n<!-- /git-stk:closes -->",
+    "base_sha": "54da11c9ce6a8ca5c070977e4b25e02ae0b5f044",
+    "head_sha": "f6e0007940e62633ddde27ec2993f50f3fe73b56",
+    "commits": 2
+  },
+  "fix": {
+    "pr": 248,
+    "sha": "a52641426a4239d8fdcf0f01846980e87feea363"
+  },
+  "expected": [
+    {
+      "path": "src/commands/submit.rs",
+      "line": 219,
+      "window": 5,
+      "alt": [],
+      "description": "The rename markers are cleared for every renamed branch even when the user declined to close the superseded review, so a later submit never re-offers the reconciliation.",
+      "severity": "low",
+      "visibility": "medium",
+      "location_source": "blame"
+    }
+  ],
+  "prior_bot": {
+    "status": "n/a",
+    "comment_ids": [],
+    "note": "predates the bot"
+  }
+}

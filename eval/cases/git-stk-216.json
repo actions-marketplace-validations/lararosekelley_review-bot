@@ -1,0 +1,35 @@
+{
+  "id": "git-stk-216",
+  "repo": "lararosekelley/git-stk",
+  "kind": "historical",
+  "split": "dev",
+  "pr": {
+    "number": 20,
+    "title": "refactor(providers): split into folder",
+    "body": "",
+    "base_sha": "1a233ee63e977afc9acb0449c0554599dd29dd89",
+    "head_sha": "f13d7d58ef1417a460848fc93a647d5702296ea3",
+    "commits": 1
+  },
+  "fix": {
+    "pr": 216,
+    "sha": "ca2c40113ae38b3912354d97e7778a630468da5f"
+  },
+  "expected": [
+    {
+      "path": "src/providers/gitlab.rs",
+      "line": 47,
+      "window": 5,
+      "alt": [],
+      "description": "GitLab create_review passes --fill, which makes glab push the current checkout onto the source branch, clobbering a sibling branch when a stack is submitted from its leaf.",
+      "severity": "high",
+      "visibility": "low",
+      "location_source": "blame"
+    }
+  ],
+  "prior_bot": {
+    "status": "n/a",
+    "comment_ids": [],
+    "note": "predates the bot"
+  }
+}

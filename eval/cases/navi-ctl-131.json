@@ -1,0 +1,26 @@
+{
+  "id": "navi-ctl-131",
+  "repo": "lararosekelley/navi",
+  "kind": "control",
+  "split": "dev",
+  "pr": {
+    "number": 131,
+    "title": "feat(cli): validate config in `navi doctor` (static checks + --offline)",
+    "body": "feat(cli): validate config in `navi doctor` (static checks + --offline)\n\n<!-- git-stk:closes -->\nCloses #116\n<!-- /git-stk:closes -->",
+    "base_sha": "bd333dcc7b72d0e1dd3868631c4da77e8246dc19",
+    "head_sha": "c206ed28cc1cbe3111801ac564bbed6af03bf266",
+    "commits": 1
+  },
+  "fix": null,
+  "expected": [],
+  "prior_bot": {
+    "status": "n/a",
+    "comment_ids": [
+      3652755261,
+      3652755338,
+      3652757854,
+      3652757957
+    ],
+    "note": "control; bot left 4 inline and 3 summary comments during review"
+  }
+}

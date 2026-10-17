@@ -1,0 +1,35 @@
+{
+  "id": "git-stk-185",
+  "repo": "lararosekelley/git-stk",
+  "kind": "historical",
+  "split": "dev",
+  "pr": {
+    "number": 132,
+    "title": "chore(cli): add stack lock",
+    "body": "<!-- git-stk:closes -->\nCloses #128\n<!-- /git-stk:closes -->",
+    "base_sha": "25453fff4c9fd4d2ceacddf72c74980a923afdad",
+    "head_sha": "27b0cf2ee2784f69b2dea178b84df24caa76c561",
+    "commits": 1
+  },
+  "fix": {
+    "pr": 185,
+    "sha": "ca8537e6c9372c9cd2cbbe51581b04107efd0561"
+  },
+  "expected": [
+    {
+      "path": "src/lock.rs",
+      "line": 43,
+      "window": 5,
+      "alt": [],
+      "description": "A lock file left by a crashed or killed process is never reclaimed, so every later git stk command fails until the user removes it by hand.",
+      "severity": "medium",
+      "visibility": "medium",
+      "location_source": "blame"
+    }
+  ],
+  "prior_bot": {
+    "status": "n/a",
+    "comment_ids": [],
+    "note": "predates the bot"
+  }
+}

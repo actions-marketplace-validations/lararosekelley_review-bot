@@ -1,0 +1,35 @@
+{
+  "id": "git-stk-101",
+  "repo": "lararosekelley/git-stk",
+  "kind": "historical",
+  "split": "dev",
+  "pr": {
+    "number": 94,
+    "title": "chore(cli): make merge --wait more durable",
+    "body": "<!-- git-stk:closes -->\nCloses #93\n<!-- /git-stk:closes -->",
+    "base_sha": "5ca54bccf669e799d62dec86c243a036a17bb2b1",
+    "head_sha": "e12851e3ff9681f288d57775a4970a079f41c02a",
+    "commits": 1
+  },
+  "fix": {
+    "pr": 101,
+    "sha": "9dfa68fbb1dbf1f3e02d82753e6f686b8cd419ff"
+  },
+  "expected": [
+    {
+      "path": "src/providers/github.rs",
+      "line": 82,
+      "window": 5,
+      "alt": [],
+      "description": "After the grace polls with no checks reported, wait_for_checks returns success even when branch protection is gating the merge on required checks that have not registered yet, so merge --wait merges early into a block.",
+      "severity": "medium",
+      "visibility": "low",
+      "location_source": "blame"
+    }
+  ],
+  "prior_bot": {
+    "status": "n/a",
+    "comment_ids": [],
+    "note": "predates the bot"
+  }
+}

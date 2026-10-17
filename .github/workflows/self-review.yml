@@ -30,10 +30,28 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      # Comment events run with the API key, so a fork's code is never checked
+      # out next to it: a comment on a PR from another repo reviews the base.
+      - name: Resolve the ref to review
+        id: ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          ref="$GITHUB_SHA"
+          if [ "$EVENT" = pull_request ]; then
+            ref="$PR_HEAD_SHA"
+          elif [ "$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json isCrossRepository --jq .isCrossRepository)" = false ]; then
+            ref="${PR_HEAD_SHA:-refs/pull/$PR_NUMBER/head}"
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v6
         with:
           fetch-depth: 1
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ steps.ref.outputs.ref }}
 
       - uses: ./
         with:
@@ -42,14 +60,17 @@ jobs:
             ## The stack
 
             This repo ships the code review bot itself: a composite GitHub Action
-            (`action.yml`), a reusable workflow (`.github/workflows/review.yml`), and the
-            agent's instructions (`prompts/BASE_PROMPT.md`). There is no application code.
+            (`action.yml`), a reusable workflow (`.github/workflows/review.yml`), the agent's
+            instructions (`prompts/`), and `scripts/review.py`, which runs the review passes,
+            merges their findings, and posts them. `eval/` is an offline harness that measures
+            the prompt; it never runs in CI.
 
             ## What CI already covers, so never mention it
 
             commitlint (conventional commits with a required scope), markdownlint,
             actionlint over `.github/workflows/` and `examples/` - which includes shellcheck
-            over every `run:` block - and shellcheck over `scripts/` and the git hooks.
+            over every `run:` block - shellcheck over `scripts/` and the git hooks, and the unit
+            tests in `tests/` for `scripts/review.py`.
 
             ## What matters here
 
@@ -62,6 +83,9 @@ jobs:
               interpolation in `action.yml`, which the runner evaluates before bash sees it.
               Every variable the script reads must be passed by the action's `env:` block; a
               missing one is caught only at run time, by `set -u`.
+            - `scripts/review.py post` is the only code that writes to a PR, and everything it
+              posts comes from model output. Check that model text cannot spoof the bot's
+              markers, escape its length caps, or steer which comment gets edited.
             - The gating expression in the reusable workflow is the only thing standing between
               a stranger's comment and the maintainer's API key. Trace it per event.
             - Inputs documented in the README table must match `action.yml` and

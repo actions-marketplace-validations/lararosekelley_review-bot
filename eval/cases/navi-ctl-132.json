@@ -1,0 +1,21 @@
+{
+  "id": "navi-ctl-132",
+  "repo": "lararosekelley/navi",
+  "kind": "control",
+  "split": "holdout",
+  "pr": {
+    "number": 132,
+    "title": "refactor(core): share headline/thread_key/html_escape and add model tests",
+    "body": "refactor(core): share headline/thread_key/html_escape and add model tests",
+    "base_sha": "d0bcafe0b239b7028cfeb9f63d2da21cb6485316",
+    "head_sha": "01f0d4fcbf149d74db67241a170391f5779d559a",
+    "commits": 1
+  },
+  "fix": null,
+  "expected": [],
+  "prior_bot": {
+    "status": "n/a",
+    "comment_ids": [],
+    "note": "control; bot left 0 inline and 2 summary comments during review"
+  }
+}

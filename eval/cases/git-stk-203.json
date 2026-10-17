@@ -1,0 +1,40 @@
+{
+  "id": "git-stk-203",
+  "repo": "lararosekelley/git-stk",
+  "kind": "historical",
+  "split": "holdout",
+  "pr": {
+    "number": 157,
+    "title": "feat(cli): restore stack from remote",
+    "body": "<!-- git-stk:closes -->\nCloses #151\n<!-- /git-stk:closes -->",
+    "base_sha": "e448c0bd00838336866bf2f80fc34671d5abcaf3",
+    "head_sha": "d6d4d6fa4434bf97a69f61d4c3f982f5954216a4",
+    "commits": 1
+  },
+  "fix": {
+    "pr": 203,
+    "sha": "9ff15562381aa488798e69700036d3684409e62b"
+  },
+  "expected": [
+    {
+      "path": "src/stack/mod.rs",
+      "line": 371,
+      "window": 5,
+      "alt": [
+        {
+          "path": "src/stack/mod.rs",
+          "line": 380
+        }
+      ],
+      "description": "apply_remote_metadata passes branch and parent names read from untrusted remote metadata straight to git fetch/config, so a name like `--upload-pack=...` is parsed as a git option (argument injection).",
+      "severity": "high",
+      "visibility": "high",
+      "location_source": "blame"
+    }
+  ],
+  "prior_bot": {
+    "status": "n/a",
+    "comment_ids": [],
+    "note": "predates the bot"
+  }
+}
