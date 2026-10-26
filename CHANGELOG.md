@@ -5,6 +5,20 @@ What changed in each version, for the people using the action. Each section is d
 publishes the section matching the tag as the GitHub release notes, so headings must stay
 `## X.Y.Z - YYYY-MM-DD`.
 
+## 1.3.0 - 2026-10-25
+
+### Changed
+
+- The summary's cost line is now the PR's estimated cost and tokens so far, and expands to list each
+  review's, oldest first. PRs reviewed before 1.3.0 start the total at their next review.
+- A re-review's "Re-reviewed" comment includes the new confidence score and its change since the
+  last review. The summary shows that change whenever there was an earlier review, not only when
+  earlier findings were still open.
+- The bot's comments carry the review-bot logo: before the name in the summary heading, and at the
+  start of its inline findings, review, "Fixed" replies, and re-review comment.
+- The default `footer` is now "Automated code review provided by review-bot. Findings are advisory
+  and should be vetted.", linking to this repository.
+
 ## 1.2.2 - 2026-10-16
 
 ### Added
