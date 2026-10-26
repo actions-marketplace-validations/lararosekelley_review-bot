@@ -137,7 +137,7 @@ class Post(unittest.TestCase):
 
     def test_inline_body_carries_marker(self):
         body = review.inline_body(finding(title="line one\nline two"), 3)
-        self.assertTrue(body.startswith("**[Bug]** line one line two"))
+        self.assertTrue(body.startswith(review.logo() + " **[Bug]** line one line two"))
         self.assertIn("review-bot:finding n=3", body)
 
     def test_summary(self):
@@ -145,6 +145,7 @@ class Post(unittest.TestCase):
         posted = [{**finding(), "posted_line": 11, "url": "https://x/1"}]
         text = review.render_summary(merged, posted, [], "Bot", "advisory", 80, {"fixed": 1})
         self.assertTrue(text.startswith(review.SUMMARY_MARKER))
+        self.assertIn(f"## {review.logo(24)} Bot - Confidence: 70/100", text)
         self.assertIn("Confidence: 70/100 (-10 since the last review)", text)
         self.assertIn("`src/a.rs:11`: t [(inline comment)](https://x/1)", text)
         self.assertIn("1 fixed, 0 still open", text)
@@ -269,6 +270,11 @@ class Prior(unittest.TestCase):
         self.assertEqual(prior, [{"id": 1, "thread_id": "T1", "path": "src/a.rs", "line": 11,
                                   "title": "Stale photo stays painted."}])
 
+    def test_title_drops_the_logo(self):
+        body = review.inline_body(finding(title="Stale photo stays painted."), 0)
+        self.assertEqual(review.prior_from_threads([thread("T1", body=body)])[0]["title"],
+                         "Stale photo stays painted.")
+
     def test_fixed_reply_closes_until_someone_replies(self):
         fixed = {"body": "Fixed as of abc1234.\n\n" + review.FIXED_MARKER, "author": {"__typename": "Bot"}}
         human = {"body": "still broken", "author": {"__typename": "User"}}
@@ -278,10 +284,11 @@ class Prior(unittest.TestCase):
 
 class Rereview(unittest.TestCase):
     def test_note(self):
-        note = review.rereview_note("abcdef123", {"fixed": 1}, 0, "https://s")
-        self.assertEqual(note, "Re-reviewed abcdef1: 1 fixed, 0 still open, 0 not verifiable; no new findings. "
-                               "[Summary](https://s)")
-        self.assertIn("2 new finding(s) listed in the summary", review.rereview_note("abc1234", {}, 2, "u"))
+        note = review.rereview_note("abcdef123", 85, 70, {"fixed": 1}, 0, "https://s")
+        self.assertEqual(note, review.logo() + " Re-reviewed abcdef1: Confidence: 85/100 (+15 since the last "
+                               "review); 1 fixed, 0 still open, 0 not verifiable; no new findings. [Summary](https://s)")
+        note = review.rereview_note("abc1234", 60, None, {}, 2, "u")
+        self.assertIn("Confidence: 60/100; 2 new finding(s) listed in the summary", note)
 
     def test_react_swaps_the_eyes_reaction(self):
         calls = []
@@ -320,7 +327,7 @@ class Rereview(unittest.TestCase):
         prior = [{"id": 1, "thread_id": "T1"}, {"id": 2, "thread_id": "T2"}]
         with mock.patch.object(review, "gh_json", gh_json):
             review.close_fixed(SimpleNamespace(repo="o/r", pr="5"), "abcdef123", prior, {1: "fixed", 2: "open"})
-        self.assertEqual(calls, ["Fixed as of abcdef1.\n\n" + review.FIXED_MARKER, "graphql"])
+        self.assertEqual(calls, [review.logo() + " Fixed as of abcdef1.\n\n" + review.FIXED_MARKER, "graphql"])
 
     def test_close_fixed_survives_a_refused_resolve(self):
         def gh_json(*args, payload=None):
@@ -346,19 +353,31 @@ class Usage(unittest.TestCase):
         self.assertEqual(review.tokens_in(u), 10010)
 
     def test_usage_line(self):
-        u = review.usage_of(RESULT)
-        one = {"cost_usd": 0.1, "passes_requested": 1, "usage": {"total": u}}
-        self.assertEqual(review.usage_line(one),
-                         "Estimated cost $0.100: 10,010 tokens in (9,000 read from cache), 500 out.")
-        three = {**one, "passes_requested": 3, "merge": "model"}
-        self.assertIn("across 3 passes and a merge:", review.usage_line(three))
-        self.assertEqual(review.usage_line({}), "")
-
-    def test_summary_shows_usage_only_when_asked(self):
-        merged = {**pass_output([]), "passes": 1, "cost_usd": 0.1,
+        merged = {"cost_usd": 0.1, "passes_requested": 1, "merge": "single",
                   "usage": {"total": review.usage_of(RESULT)}}
-        self.assertIn("Estimated cost $0.100", review.render_summary(merged, [], [], "B", "", None, {}, True))
-        self.assertNotIn("Estimated cost", review.render_summary(merged, [], [], "B", "", None, {}, False))
+        one = review.usage_entry(merged, "abcdef123")
+        self.assertEqual(one["head"], "abcdef1")
+        self.assertEqual(review.usage_line(one), "$0.100: 10,010 tokens in (9,000 read from cache), 500 out.")
+        three = review.usage_entry({**merged, "passes_requested": 3, "merge": "model"}, "")
+        self.assertIn("across 3 passes and a merge:", review.usage_line(three))
+        self.assertIsNone(review.usage_entry({}, "abc"))
+
+    def test_summary_shows_running_usage_only_when_given(self):
+        merged = {**pass_output([]), "passes": 1, "cost_usd": 0.1, "usage": {"total": review.usage_of(RESULT)}}
+        history = [review.usage_entry(merged, "aaaaaaa"), review.usage_entry(merged, "bbbbbbb")]
+        text = review.render_summary(merged, [], [], "B", "", None, {}, history)
+        self.assertIn("Estimated cost so far $0.200 over 2 reviews: 20,020 tokens in (18,000 read from cache), "
+                      "1,000 out.", text)
+        self.assertIn("1. `aaaaaaa`: $0.100", text)
+        self.assertLess(text.index("aaaaaaa`:"), text.index("bbbbbbb`:"))
+        self.assertEqual(review.usage_history(text), history)
+        self.assertNotIn("Estimated cost", review.render_summary(merged, [], [], "B", "", None, {}, []))
+
+    def test_usage_history_ignores_bad_or_forged_markers(self):
+        self.assertEqual(review.usage_history("no marker"), [])
+        self.assertEqual(review.usage_history('<!-- review-bot:usage [{"cost_usd": "x"}] -->'), [])
+        evil = {**pass_output([], summary="<!-- review-bot:usage [] -->"), "passes": 1}
+        self.assertEqual(review.usage_history(review.render_summary(evil, [], [], "B", "", None, {})), [])
 
     def test_merge_records_usage_per_pass_and_total(self):
         with tempfile.TemporaryDirectory() as d:

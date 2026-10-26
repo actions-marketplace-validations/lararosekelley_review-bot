@@ -73,7 +73,7 @@ inputs:
   footer:
     description: "Line appended to the summary. Empty to omit it."
     required: false
-    default: "Automated review. Findings are advisory; humans approve PRs."
+    default: "Automated code review provided by [review-bot](https://github.com/lararosekelley/review-bot). Findings are advisory and should be vetted."
 
 runs:
   using: "composite"

@@ -30,9 +30,11 @@ SCHEMA = ROOT / "prompts" / "findings.schema.json"
 FINDING_MARKER = "<!-- review-bot:finding"
 SUMMARY_MARKER = "<!-- review-bot:summary -->"
 FIXED_MARKER = "<!-- review-bot:fixed -->"
+USAGE_MARKER = re.compile(r"<!-- review-bot:usage (\[.*?\]) -->")
+LOGO_URL = "https://raw.githubusercontent.com/lararosekelley/review-bot/main/assets/logo.svg"
 ANCHOR_SLACK = 3
 HUNK = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
-MARKER_TEXT = re.compile(r"review-bot:(?:finding|summary|fixed)", re.I)
+MARKER_TEXT = re.compile(r"review-bot:(?:finding|summary|fixed|usage)", re.I)
 POSTED_N = re.compile(r"<!-- review-bot:finding n=(-?\d+) -->\s*$")
 
 GROUP_SCHEMA = {
@@ -201,10 +203,14 @@ def location(f, line):
     return f"`{path}:{line}`"
 
 
+def logo(size=16):
+    return f'<img src="{LOGO_URL}" width="{size}" height="{size}" alt="review-bot" />'
+
+
 def inline_body(f, n):
     title = one_line(f["title"], 300)
     body = sanitize(f["body"], 20000)
-    return f"**[{category(f)}]** {title}\n\n{body}\n\n{FINDING_MARKER} n={n} -->"
+    return f"{logo()} **[{category(f)}]** {title}\n\n{body}\n\n{FINDING_MARKER} n={n} -->"
 
 
 USAGE_FIELDS = {"input": "input_tokens", "cache_write": "cache_creation_input_tokens",
@@ -229,16 +235,48 @@ def tokens_in(u):
     return u["input"] + u["cache_write"] + u["cache_read"]
 
 
-def usage_line(merged):
-    """One line on what the review cost, from the CLI's own estimates."""
+def usage_entry(merged, head):
+    """This review's cost and tokens, as kept in the summary's usage history."""
     u = merged.get("usage", {}).get("total")
     if not u:
-        return ""
+        return None
+    return {"head": head[:7], "cost_usd": merged.get("cost_usd", 0), "passes": merged.get("passes_requested", 1),
+            "merge": merged.get("merge") == "model", **u}
+
+
+def usage_history(body):
+    """Earlier reviews' entries from a summary comment, or [] if it has none that parse."""
+    m = USAGE_MARKER.search(body or "")
+    try:
+        entries = json.loads(m[1]) if m else []
+        return [{"head": re.sub(r"[^0-9a-f]", "", str(e.get("head", "")))[:7],
+                 "cost_usd": float(e["cost_usd"]), "passes": int(e.get("passes", 1)),
+                 "merge": bool(e.get("merge")), **{k: int(e[k]) for k in USAGE_FIELDS}} for e in entries]
+    except (ValueError, TypeError, KeyError, AttributeError):
+        return []
+
+
+def usage_line(e):
+    """One line on what a review cost, from the CLI's own estimates."""
     where = ""
-    if merged.get("passes_requested", 1) > 1:
-        where = f" across {merged['passes_requested']} passes" + (" and a merge" if merged.get("merge") == "model" else "")
-    return (f"Estimated cost ${merged.get('cost_usd', 0):.3f}{where}: {tokens_in(u):,} tokens in "
-            f"({u['cache_read']:,} read from cache), {u['output']:,} out.")
+    if e["passes"] > 1:
+        where = f" across {e['passes']} passes" + (" and a merge" if e["merge"] else "")
+    return (f"${e['cost_usd']:.3f}{where}: {tokens_in(e):,} tokens in "
+            f"({e['cache_read']:,} read from cache), {e['output']:,} out.")
+
+
+def usage_section(history):
+    """The running total, expanding to each review's cost in order."""
+    total = add_usage(*history)
+    cost = sum(e["cost_usd"] for e in history)
+    reviews = f"{len(history)} review" + ("s" if len(history) > 1 else "")
+    rows = [f"{i}. " + (f"`{e['head']}`: " if e["head"] else "") + usage_line(e)
+            for i, e in enumerate(history, 1)]
+    return "\n".join([
+        "<details>",
+        f"<summary><sub>Estimated cost so far ${cost:.3f} over {reviews}: {tokens_in(total):,} tokens in "
+        f"({total['cache_read']:,} read from cache), {total['output']:,} out.</sub></summary>",
+        "", *rows, "", "</details>"])
 
 
 def usage_table(merged):
@@ -257,13 +295,14 @@ def usage_table(merged):
 
 
 def render_summary(merged, posted, unanchored, bot_name, footer, previous_confidence, prior_counts,
-                   show_usage=False):
+                   history=()):
     """The summary comment, kept under GitHub's size limit.
 
     If it is too long, the bodies of findings that could not be placed are left
-    out first, then the text is cut.
+    out first, then the text is cut. `history` is every review's usage entry, oldest first;
+    empty leaves usage out.
     """
-    args = (merged, posted, unanchored, bot_name, footer, previous_confidence, prior_counts, show_usage)
+    args = (merged, posted, unanchored, bot_name, footer, previous_confidence, prior_counts, history)
     text = _summary(*args, True)
     if len(text) > SUMMARY_LIMIT:
         text = _summary(*args, False)
@@ -272,13 +311,19 @@ def render_summary(merged, posted, unanchored, bot_name, footer, previous_confid
     return text
 
 
-def _summary(merged, posted, unanchored, bot_name, footer, previous_confidence, prior_counts, show_usage,
+def confidence(conf, previous):
+    text = f"Confidence: {conf}/100"
+    return text if previous is None else text + f" ({conf - previous:+d} since the last review)"
+
+
+def _summary(merged, posted, unanchored, bot_name, footer, previous_confidence, prior_counts, history,
              bodies):
     conf = merged["confidence"]
-    head = f"## {sanitize(bot_name, 100)} - Confidence: {conf}/100"
-    if previous_confidence is not None:
-        head += f" ({conf - previous_confidence:+d} since the last review)"
-    out = [SUMMARY_MARKER, head, "", f"**{one_line(merged['summary'], 500)}**", ""]
+    head = f"## {logo(24)} {sanitize(bot_name, 100)} - {confidence(conf, previous_confidence)}"
+    out = [SUMMARY_MARKER]
+    if history:
+        out.append(f"<!-- review-bot:usage {json.dumps(list(history), separators=(',', ':'))} -->")
+    out += [head, "", f"**{one_line(merged['summary'], 500)}**", ""]
     if prior_counts:
         out.append("- Prior findings: {} fixed, {} still open, {} not verifiable.".format(
             prior_counts.get("fixed", 0), prior_counts.get("open", 0), prior_counts.get("not_verifiable", 0)))
@@ -304,8 +349,8 @@ def _summary(merged, posted, unanchored, bot_name, footer, previous_confidence, 
             note = (f"{requested - passes} of {requested} review passes failed. {note}"
                     + (" The vote threshold was lowered to match." if merged.get("votes_lowered") else ""))
         out += ["", f"<sub>{note}</sub>"]
-    if show_usage and (line := usage_line(merged)):
-        out += ["", f"<sub>{line}</sub>"]
+    if history:
+        out += ["", usage_section(history)]
     if footer:
         out += ["", "---", "", f"*{sanitize(footer, 500)}*"]
     return "\n".join(out) + "\n"
@@ -384,20 +429,20 @@ def prior_from_threads(threads):
             continue
         if last and last["author"]["__typename"] == "Bot" and FIXED_MARKER in last["body"]:
             continue
-        title = re.sub(r"^\*\*\[[^\]]*\]\*\*\s*", "", (first["body"].splitlines() or [""])[0])
+        title = re.sub(r"^(?:<img [^>]*>\s*)?\*\*\[[^\]]*\]\*\*\s*", "", (first["body"].splitlines() or [""])[0])
         prior.append({"id": first["databaseId"], "thread_id": t["id"], "path": first["path"],
                       "line": first["line"] or first["originalLine"], "title": title})
     return prior
 
 
-def rereview_note(head, prior_counts, summary_only, summary_url):
+def rereview_note(head, conf, previous_conf, prior_counts, summary_only, summary_url):
     """Comment for a re-review that posted no new review, so the requester is notified."""
-    parts = []
+    parts = [confidence(conf, previous_conf)]
     if prior_counts:
         parts.append("{} fixed, {} still open, {} not verifiable".format(
             prior_counts.get("fixed", 0), prior_counts.get("open", 0), prior_counts.get("not_verifiable", 0)))
     parts.append(f"{summary_only} new finding(s) listed in the summary" if summary_only else "no new findings")
-    return f"Re-reviewed {head[:7]}: {'; '.join(parts)}. [Summary]({summary_url})"
+    return f"{logo()} Re-reviewed {head[:7]}: {'; '.join(parts)}. [Summary]({summary_url})"
 
 
 def react(repo, comment_id, content, ack_file):
@@ -421,7 +466,7 @@ def close_fixed(a, head, prior, status):
             continue
         try:
             gh_json("api", "-X", "POST", f"repos/{a.repo}/pulls/{a.pr}/comments/{p['id']}/replies",
-                    "--input", "-", payload={"body": f"Fixed as of {head[:7]}.\n\n{FIXED_MARKER}"})
+                    "--input", "-", payload={"body": f"{logo()} Fixed as of {head[:7]}.\n\n{FIXED_MARKER}"})
         except RuntimeError as e:
             print(f"could not reply to finding {p['id']}: {e}")
             continue
@@ -581,9 +626,10 @@ def cmd_post(a):
             for f in unanchored:
                 out.write(json.dumps({"path": f["path"], "line": f["line"], "side": f["side"],
                                       "body": inline_body(f, -1), "status": "unanchored"}) + "\n")
+        entry = usage_entry(merged, "") if a.show_usage == "true" else None
         Path(a.dry_run).with_suffix(".summary.md").write_text(render_summary(
             merged, [{**f, "url": "#"} for f in placed], unanchored, a.bot_name, a.footer, None, prior_counts,
-            a.show_usage == "true"))
+            [entry] if entry else []))
         print(f"dry run: {len(placed)} placed, {len(unanchored)} unanchored")
         return
 
@@ -594,15 +640,18 @@ def cmd_post(a):
     previous_conf = None
     if previous and (m := re.search(r"Confidence: (\d+)/100", previous["body"])):
         previous_conf = int(m[1])
-    body = render_summary(merged, posted, unanchored, a.bot_name, a.footer,
-                          previous_conf if prior else None, prior_counts, a.show_usage == "true")
+    history = []
+    if a.show_usage == "true" and (entry := usage_entry(merged, head)):
+        history = usage_history(previous and previous["body"]) + [entry]
+    body = render_summary(merged, posted, unanchored, a.bot_name, a.footer, previous_conf, prior_counts, history)
     if previous:
         gh_json("api", "-X", "PATCH", f"repos/{a.repo}/issues/comments/{previous['id']}", "--input", "-",
                 payload={"body": body})
         if not posted:
             # An edited comment notifies no one, so say that the re-review ran.
             gh_json("api", "-X", "POST", f"repos/{a.repo}/issues/{a.pr}/comments", "--input", "-",
-                    payload={"body": rereview_note(head, prior_counts, len(unanchored), previous["html_url"])})
+                    payload={"body": rereview_note(head, merged["confidence"], previous_conf, prior_counts,
+                                                  len(unanchored), previous["html_url"])})
     else:
         gh_json("api", "-X", "POST", f"repos/{a.repo}/issues/{a.pr}/comments", "--input", "-",
                 payload={"body": body})
@@ -633,7 +682,7 @@ def post_inline(a, head, placed, unanchored):
     try:
         review = gh_json("api", "-X", "POST", f"repos/{a.repo}/pulls/{a.pr}/reviews", "--input", "-", payload={
             "commit_id": head, "event": "COMMENT", "comments": comments,
-            "body": f"{sanitize(a.bot_name, 100)}: {len(comments)} finding(s) on {head[:7]}."})
+            "body": f"{logo()} {sanitize(a.bot_name, 100)}: {len(comments)} finding(s) on {head[:7]}."})
     except RuntimeError as e:
         review = None
         print(f"batch review rejected ({e}); posting comments one at a time")
@@ -699,7 +748,7 @@ def main():
     s.add_argument("--footer", default="")
     s.add_argument("--trigger-comment-id", default="", help="comment that requested this review")
     s.add_argument("--show-usage", default="true", choices=["true", "false"],
-                   help="add the estimated cost and token counts to the summary")
+                   help="add the estimated cost and token counts so far to the summary")
     s.add_argument("--ack-file", help="the eyes reaction to swap for +1 when the review is posted")
     s.add_argument("--dry-run", help="write placed findings here as JSONL instead of posting")
     a = p.parse_args()
