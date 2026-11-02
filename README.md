@@ -54,6 +54,9 @@ jobs:
 
 The `permissions` block is required.
 
+`@v1` follows each 1.x release; an exact tag such as `@v1.4.0` stays on that release. The workflow
+runs the action from its own commit, so either pin covers both.
+
 That's it! Opening a PR triggers a review; commenting `@bot review` on a PR runs
 another one; replying `@bot` to one of its inline comments starts a conversation on that thread.
 
@@ -82,6 +85,7 @@ with:
 | `passes`               | `1`                         | Independent review passes, run in parallel. With more than one, only findings raised by at least `min-votes` passes are posted. |
 | `min-votes`            | auto                        | Passes that must raise a finding. Defaults to 1 for a single pass, 2 otherwise.                                                 |
 | `merge-model`          | `claude-haiku-4-5-20251001` | Model that groups duplicate findings across passes.                                                                             |
+| `verify`               | `false`                     | Rechecks each finding before posting. Posts about half as many comments, mostly fewer nits, but misses more real bugs.          |
 | `claude-code-version`  | `2.1.301`                   | Claude Code CLI version the review passes run.                                                                                  |
 | `show-usage`           | `true`                      | Adds the PR's estimated cost and tokens so far to the summary, per review. The job's step summary always has them, per pass.    |
 | `bot-name`             | `Code Review Bot`           | The name it signs the summary with.                                                                                             |

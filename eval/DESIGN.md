@@ -16,7 +16,9 @@ not committed.
 - **seeded**: a control PR with one injected defect that still builds and passes tests. `seed`
   holds the patch, the control it starts from, the kind of mutation, and the repo's test command.
   The mutations are modeled on real bugs in the source repos: a removed guard, an off-by-one bound,
-  unescaped shell interpolation, an ignored parameter or flag. Seeded cases carry most of the
+  unescaped shell interpolation, an ignored parameter or flag, a setting honored by one provider but
+  not another, a step skipped on one of two parallel paths, a wrong but well-typed value, and a
+  destructive default on error. Seeded cases carry most of the
   recall measurement, since few historical bugs are plainly visible in their diff, and are scored
   separately from historical ones.
 
@@ -35,7 +37,7 @@ metadata.
 ## Replay
 
 `harness/replay.py` reviews a unit with the action's own scripts, locally: `assemble-prompt.sh` in
-review mode, then `review.py find`, `merge`, and `post --dry-run`.
+review mode, then `review.py find`, `merge`, optionally `verify` (`--verify`), and `post --dry-run`.
 
 - The repo is cloned at the PR head with every ref except the PR branch and `origin/main` (the
   base) removed and unreachable objects pruned, so the fix is not in history. A seed is folded into
@@ -101,12 +103,23 @@ separate verification pass. A verification pass is judged on noise removed again
 - `harness/compare.py` compares two configurations with a paired bootstrap over units.
 - `harness/ensemble.py` estimates multi-pass reviews (union, or a 2-pass vote) from a
   configuration's independent reps.
-- `harness/check_judge.py` checks the judge's triage calls against the labeled sample.
-- `harness/sample_triage.py` writes a sample of the judge's triage calls to `labels/` for a person
-  to label, to check the judge.
+- `harness/check_judge.py` checks the judge's triage and match calls against a labeled sample;
+  `--person-only` skips labels a model wrote.
+- `harness/sample_triage.py` writes a sample of the judge's triage and match calls to `labels/` for
+  a person to label, skipping findings in earlier samples, and `--apply` reads the filled-in labels
+  back.
 - `mine/run_all.py` rebuilds the cases from git history and PR metadata.
+- `mine/pick_controls.py` lists merged PRs that qualify as controls, with the split each lands on.
 - `mine/check_seeds.py` checks that every seeded case still builds and passes its repo's tests; a
   seed the tests catch does not belong in the set.
+
+`labels/triage-sample` was labeled by Claude and used to tune the triage prompt, so it is not a fair
+check. `labels/judge-sample-2` is a fresh sample, from runs the prompt was not tuned on. A separate
+Claude agent labeled it blind, from the code and without the judge's calls (`label_source:
+claude-blind`); it agreed with the judge on 29 of 37. The judge called 3 nits valid, and 3 of the
+4 matches it graded partial the labels called no, so the judge errs lenient: noise and lenient recall
+read slightly better than they are. A person's labels, written into the sheet and read back with
+`--apply`, replace these.
 
 ## Fidelity check
 
@@ -119,8 +132,8 @@ changes:
 1. Replay the smoke units locally at the release candidate:
    `replay.py $(sandbox/smoke.py cases) --reps 3 --config smoke-<version>`.
 2. `sandbox/smoke.py push --ref <branch or sha>` opens one PR per unit in the public sandbox repo
-   (`lararosekelley/review-bot-eval`), with the source repo's workflows replaced by one that runs
-   the action at that ref. Only the repo owner's PRs and comments trigger it.
+   (`lararosekelley/review-bot-eval`), with the source repo's workflows replaced by the reusable
+   workflow at that ref. Only the repo owner's PRs and comments trigger it.
 3. Once the reviews post, `sandbox/smoke.py compare eval/runs/smoke-<version>` flags any PR whose
    comment count falls outside the local reps' range or that lacks exactly one summary.
 4. `sandbox/smoke.py rereview --ref <same ref>` asks each PR for a re-review. Comment-triggered

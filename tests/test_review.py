@@ -1,3 +1,4 @@
+import io
 import os
 import sys
 import tempfile
@@ -253,6 +254,11 @@ class FailedPasses(unittest.TestCase):
         self.assertIn("2 of 3 review passes failed", text)
         self.assertIn("vote threshold was lowered", text)
 
+    def test_summary_counts_dropped_findings(self):
+        merged = {**pass_output([]), "dropped": [{"title": "t", "path": "a", "line": 1, "reason": "r"}] * 2}
+        self.assertIn("verification pass dropped 2 findings", review.render_summary(merged, [], [], "Bot", "", None, {}))
+        self.assertNotIn("verification", review.render_summary(pass_output([]), [], [], "Bot", "", None, {}))
+
 
 def thread(tid, resolved=False, author="Bot", body=None, cid=1, last=None):
     body = body if body is not None else "**[Bug]** Stale photo stays painted.\n\nwhy\n\n" + review.FINDING_MARKER + " n=0 -->"
@@ -422,6 +428,67 @@ class Usage(unittest.TestCase):
                 review.cmd_post(a)
             row = __import__("json").loads(out.read_text().splitlines()[0])
         self.assertEqual((row["line"], row["reportedLine"]), (14, 16))
+
+
+
+class Verify(unittest.TestCase):
+    def test_apply_verdicts_keeps_findings_without_a_verdict(self):
+        fs = [finding(line=11, title="a"), finding(line=12, title="b"), finding(line=13, title="c")]
+        kept, dropped = review.apply_verdicts(fs, [{"id": 1, "keep": False, "reason": "intended"},
+                                                   {"id": 0, "keep": True, "reason": "holds"}])
+        self.assertEqual([f["title"] for f in kept], ["a", "c"])
+        self.assertEqual(dropped, [{"title": "b", "path": "src/a.rs", "line": 12, "reason": "intended"}])
+
+    def write_merged(self, d):
+        merged = Path(d, "merged.json")
+        merged.write_text(__import__("json").dumps({
+            **pass_output([finding(line=11), finding(line=12)]), "cost_usd": 0.1,
+            "notes": {"coverage": "needs a test", "ci": "", "praise": ""},
+            "usage": {"total": review.usage_of(RESULT)}}))
+        return merged
+
+    def test_verify_drops_and_counts_its_cost(self):
+        out = {"total_cost_usd": 0.05, "usage": RESULT["usage"],
+               "structured_output": {"verdicts": [{"id": 0, "keep": False, "reason": "intended\n::error::x"}],
+                                     "confidence": 90, "keep_coverage": False}}
+        with tempfile.TemporaryDirectory() as d:
+            merged = self.write_merged(d)
+            proc = SimpleNamespace(stdout=__import__("json").dumps(out), stderr="", returncode=0)
+            with mock.patch.object(review.subprocess, "run", return_value=proc), \
+                    mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+                review.cmd_verify(SimpleNamespace(merged=str(merged), model="m", effort="", tools="Read"))
+            result = __import__("json").loads(merged.read_text())
+        self.assertEqual([f["line"] for f in result["findings"]], [12])
+        self.assertEqual(result["dropped"][0]["reason"], "intended\n::error::x")
+        self.assertNotIn("\n::error::", stdout.getvalue())
+        self.assertEqual(result["cost_usd"], 0.15)
+        self.assertEqual(result["usage"]["total"]["output"], 1000)
+        self.assertEqual(result["confidence"], 90)
+        self.assertEqual(result["notes"]["coverage"], "")
+
+    def test_verify_failure_posts_every_finding(self):
+        with tempfile.TemporaryDirectory() as d:
+            merged = self.write_merged(d)
+            before = merged.read_text()
+            with mock.patch.object(review.subprocess, "run",
+                                   side_effect=review.subprocess.TimeoutExpired("claude", 600)):
+                review.cmd_verify(SimpleNamespace(merged=str(merged), model="m", effort="", tools="Read"))
+            self.assertEqual(merged.read_text(), before)
+
+    def test_malformed_check_posts_every_finding(self):
+        json = __import__("json")
+        verdict = {"id": 0, "keep": False, "reason": "intended"}
+        for stdout in ["", "not json", json.dumps({"structured_output": [verdict]}),
+                       json.dumps({"result": json.dumps({"verdicts": [{"id": 0}], "confidence": 90,
+                                                         "keep_coverage": True})}),
+                       json.dumps({"structured_output": {"verdicts": [verdict]}})]:
+            with self.subTest(stdout=stdout), tempfile.TemporaryDirectory() as d:
+                merged = self.write_merged(d)
+                before = merged.read_text()
+                proc = SimpleNamespace(stdout=stdout, stderr="", returncode=0)
+                with mock.patch.object(review.subprocess, "run", return_value=proc):
+                    review.cmd_verify(SimpleNamespace(merged=str(merged), model="m", effort="", tools="Read"))
+                self.assertEqual(merged.read_text(), before)
 
 
 if __name__ == "__main__":
