@@ -5,6 +5,14 @@ What changed in each version, for the people using the action. Each section is d
 publishes the section matching the tag as the GitHub release notes, so headings must stay
 `## X.Y.Z - YYYY-MM-DD`.
 
+## 1.4.0 - 2026-11-01
+
+### Fixed
+
+- With `passes` above 1, the step that groups duplicate findings across passes takes a few seconds
+  instead of up to two and a half minutes, and keeps the same findings. If it takes longer than 60
+  seconds, findings are grouped by location instead.
+
 ## 1.3.0 - 2026-10-25
 
 ### Changed

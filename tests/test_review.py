@@ -395,6 +395,34 @@ class Usage(unittest.TestCase):
         self.assertIn("| Pass 2 | $0.100 | 10,010 | 9,000 | 500 |", table)
         self.assertIn("| Total | $0.200 | 20,020 | 18,000 | 1,000 |", table)
 
+    def test_merge_falls_back_to_location_when_the_call_times_out(self):
+        with tempfile.TemporaryDirectory() as d:
+            for i in (1, 2):
+                Path(d, f"pass-{i}.json").write_text(__import__("json").dumps({
+                    "pass": i, "ok": True, "cost_usd": 0.1, "usage": review.usage_of(RESULT),
+                    "output": pass_output([finding(fid="x")])}))
+            out = Path(d, "merged.json")
+            with mock.patch.object(review.subprocess, "run",
+                                   side_effect=review.subprocess.TimeoutExpired("claude", 60)) as run:
+                review.cmd_merge(SimpleNamespace(in_dir=d, min_votes=0, merge_model="m", out=str(out)))
+            merged = __import__("json").loads(out.read_text())
+        self.assertEqual(run.call_args.kwargs["env"]["MAX_THINKING_TOKENS"], "0")
+        self.assertEqual(merged["merge"], "positional")
+        self.assertEqual([f["votes"] for f in merged["findings"]], [2])
+
+    def test_dry_run_records_the_reported_line_beside_the_posted_one(self):
+        with tempfile.TemporaryDirectory() as d:
+            merged = Path(d, "merged.json")
+            merged.write_text(__import__("json").dumps(
+                {**pass_output([finding(line=16)]), "passes": 1, "passes_requested": 1, "min_votes": 1}))
+            out = Path(d, "findings.jsonl")
+            a = SimpleNamespace(merged=str(merged), prior=None, dry_run=str(out), show_usage="false",
+                                bot_name="B", footer="", pr=1, repo="o/r")
+            with mock.patch.object(review, "pr_diff", return_value=DIFF):
+                review.cmd_post(a)
+            row = __import__("json").loads(out.read_text().splitlines()[0])
+        self.assertEqual((row["line"], row["reportedLine"]), (14, 16))
+
 
 if __name__ == "__main__":
     unittest.main()
