@@ -91,7 +91,7 @@ def tree(repo, commit, blob):
     with tempfile.NamedTemporaryFile(dir=repo / ".git", prefix="smoke-index-") as idx:
         env = {**os.environ, "GIT_INDEX_FILE": idx.name}
         run("git", "read-tree", commit, cwd=repo, env=env)
-        run("git", "rm", "--cached", "-r", "-q", "--ignore-unmatch", ".github/workflows", cwd=repo, env=env)
+        run("git", "rm", "--cached", "-r", "-q", "-f", "--ignore-unmatch", ".github/workflows", cwd=repo, env=env)
         run("git", "update-index", "--add", "--cacheinfo", f"100644,{blob},{WORKFLOW}", cwd=repo, env=env)
         return run("git", "write-tree", cwd=repo, env=env)
 
