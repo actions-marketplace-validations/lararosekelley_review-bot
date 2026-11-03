@@ -1,0 +1,185 @@
+# Reusable workflow: the whole bot, triggers and gating included.
+#
+# Call it from your repo with a dozen lines - see examples/reusable.yml. If you
+# need to customize the triggers (branch filters, extra events), skip this and
+# use the composite action directly: examples/action.yml.
+name: "Code Review Bot"
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: "Model id."
+        type: string
+        required: false
+        default: "claude-sonnet-5-5"
+      effort:
+        description: "Reasoning effort: low, medium, high, xhigh, or empty to leave unset."
+        type: string
+        required: false
+        default: "high"
+      passes:
+        description: "Independent review passes run in parallel; see the action's passes input."
+        type: number
+        required: false
+        default: 1
+      min-votes:
+        description: "Passes that must raise a finding for it to be posted. 0 for 1 with a single pass, 2 otherwise."
+        type: number
+        required: false
+        default: 0
+      merge-model:
+        description: "Model that groups duplicate findings across passes."
+        type: string
+        required: false
+        default: "claude-haiku-4-5-20251001"
+      verify:
+        description: "Check each finding against the code before posting, and drop those it can rule out."
+        type: boolean
+        required: false
+        default: true
+      show-usage:
+        description: "Add the review's estimated cost and token counts to the summary comment."
+        type: boolean
+        required: false
+        default: true
+      claude-code-version:
+        description: "Claude Code CLI version the review passes run."
+        type: string
+        required: false
+        default: "2.1.301"
+      bot-name:
+        type: string
+        required: false
+        default: "Code Review Bot"
+      repo-notes:
+        description: "Repo-specific instructions appended to the base prompt."
+        type: string
+        required: false
+        default: ""
+      repo-notes-file:
+        description: "Path to a file in the repo holding those instructions."
+        type: string
+        required: false
+        default: ""
+      trigger-phrase:
+        description: "Phrase that re-invokes the bot from a PR comment."
+        type: string
+        required: false
+        default: "@bot"
+      allowed-associations:
+        description: >-
+          Who may spend the API key, as a comma-separated list of GitHub author
+          associations with no spaces. Default is repo owner only. For an org
+          repo, OWNER,MEMBER,COLLABORATOR is the usual choice.
+        type: string
+        required: false
+        default: "OWNER"
+      timeout-minutes:
+        type: number
+        required: false
+        default: 20
+      extra-allowed-tools:
+        type: string
+        required: false
+        default: ""
+      footer:
+        type: string
+        required: false
+        default: "Automated code review provided by [review-bot](https://github.com/lararosekelley/review-bot). Findings are advisory and should be vetted."
+    secrets:
+      anthropic-api-key:
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+jobs:
+  review:
+    # Gate on author association so a drive-by PR or a stray trigger phrase
+    # never spends the API key. The association lives on a different payload
+    # field per event, and the list is compared comma-delimited so that
+    # CONTRIBUTOR cannot match inside FIRST_TIME_CONTRIBUTOR.
+    if: >-
+      (github.event_name == 'pull_request' &&
+        github.event.pull_request.draft == false &&
+        contains(format(',{0},', inputs.allowed-associations), format(',{0},', github.event.pull_request.author_association))) ||
+      (github.event_name == 'pull_request_review_comment' &&
+        contains(github.event.comment.body, inputs.trigger-phrase) &&
+        contains(format(',{0},', inputs.allowed-associations), format(',{0},', github.event.comment.author_association))) ||
+      (github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        contains(github.event.comment.body, format('{0} review', inputs.trigger-phrase)) &&
+        contains(format(',{0},', inputs.allowed-associations), format(',{0},', github.event.comment.author_association)))
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    steps:
+      # Comment events run with the API key, so a fork's code is never checked
+      # out next to it: a comment on a PR from another repo reviews the base.
+      - name: Resolve the ref to review
+        id: ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          ref="$GITHUB_SHA"
+          if [ "$EVENT" = pull_request ]; then
+            ref="$PR_HEAD_SHA"
+          elif [ "$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json isCrossRepository --jq .isCrossRepository)" = false ]; then
+            ref="${PR_HEAD_SHA:-refs/pull/$PR_NUMBER/head}"
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          ref: ${{ steps.ref.outputs.ref }}
+
+      # The action comes from this workflow's own commit, so whatever ref the
+      # caller pins (@v1, an exact release, a branch) applies to both. Only the
+      # job's OIDC token carries that commit.
+      - name: Find this workflow's commit
+        id: self
+        run: |
+          token=$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=review-bot" | jq -r .value)
+          sha=$(python3 -c 'import base64, json, sys
+          claims = sys.argv[1].split(".")[1]
+          print(json.loads(base64.urlsafe_b64decode(claims + "=" * (-len(claims) % 4)))["job_workflow_sha"])' "$token")
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the action at this workflow's commit
+        uses: actions/checkout@v6
+        with:
+          repository: lararosekelley/review-bot
+          ref: ${{ steps.self.outputs.sha }}
+          path: .review-bot-action
+          persist-credentials: false
+
+      # Excluded so the review's git commands and searches skip it.
+      - name: Keep the action out of the reviewed checkout
+        run: echo "/.review-bot-action/" >> .git/info/exclude
+
+      - uses: ./.review-bot-action
+        with:
+          anthropic-api-key: ${{ secrets.anthropic-api-key }}
+          model: ${{ inputs.model }}
+          effort: ${{ inputs.effort }}
+          passes: ${{ inputs.passes }}
+          min-votes: ${{ inputs.min-votes > 0 && inputs.min-votes || '' }}
+          merge-model: ${{ inputs.merge-model }}
+          verify: ${{ inputs.verify }}
+          claude-code-version: ${{ inputs.claude-code-version }}
+          show-usage: ${{ inputs.show-usage }}
+          trigger-phrase: ${{ inputs.trigger-phrase }}
+          bot-name: ${{ inputs.bot-name }}
+          repo-notes: ${{ inputs.repo-notes }}
+          repo-notes-file: ${{ inputs.repo-notes-file }}
+          extra-allowed-tools: ${{ inputs.extra-allowed-tools }}
+          footer: ${{ inputs.footer }}
