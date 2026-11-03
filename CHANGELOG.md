@@ -5,6 +5,25 @@ What changed in each version, for the people using the action. Each section is d
 publishes the section matching the tag as the GitHub release notes, so headings must stay
 `## X.Y.Z - YYYY-MM-DD`.
 
+## 1.5.0 - 2026-11-02
+
+### Changed
+
+- Reviews post fewer comments, mostly fewer nits, and find as many real bugs. On the eval set,
+  comments per PR fell by about a quarter, and the share of PRs with nothing worth changing that got
+  no comments rose from about 1 in 5 to about 2 in 5.
+- A new `verify` input, on by default, checks each finding against the code before posting and
+  drops the ones it can rule out. It adds one call to each review that has findings, so a review
+  costs about a third more. Set `verify: false` to skip it. The summary says how many findings it
+  dropped, and the job log lists them.
+- Architecture, complexity, and missing-coverage findings must name what goes wrong because of them,
+  so the reviewer leaves out structural preferences and requests for tests on code that works.
+
+### Fixed
+
+- The reusable workflow now runs the action from its own release. Pinning an exact release, such as
+  `@v1.5.0`, now pins both; before, the action always came from `@v1`.
+
 ## 1.4.0 - 2026-11-01
 
 ### Fixed
