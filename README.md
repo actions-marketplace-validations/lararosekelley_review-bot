@@ -7,8 +7,9 @@
 
 ---
 
-A GitHub Action that reviews your pull requests with Claude. Bring an Anthropic API key, pick a
-model, and you get a bot that posts inline findings and one summary with a confidence score.
+A GitHub Action that reviews your pull requests with Claude, or with another provider's model
+through [opencode](https://opencode.ai). Bring an API key, pick a model, and you get a bot that
+posts inline findings and one summary with a confidence score.
 
 It is tuned for **signal over volume**. It does not restate your linter's results or other CI findings, and it does not
 post a hypothesis it could not trace in the code. If the PR is clean, it says so in two lines.
@@ -20,8 +21,8 @@ Add a `REPO_NOTES.md` when you want to teach it your specifics and your coverage
 
 ## Install
 
-Add `ANTHROPIC_API_KEY` as a repository secret, then create
-`.github/workflows/code-review.yml`:
+Add `ANTHROPIC_API_KEY` as a repository secret (or another provider's key; see
+[Other models](#other-models)), then create `.github/workflows/code-review.yml`:
 
 ```yaml
 name: "Code Review Bot"
@@ -47,15 +48,16 @@ concurrency:
 
 jobs:
   review:
-    uses: lararosekelley/review-bot/.github/workflows/review.yml@v1
+    uses: lararosekelley/review-bot/.github/workflows/review.yml@v2
     secrets:
       anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
 The `permissions` block is required.
 
-`@v1` follows each 1.x release; an exact tag such as `@v1.4.0` stays on that release. The workflow
-runs the action from its own commit, so either pin covers both.
+`@v2` follows each 2.x release; an exact tag such as `@v2.0.0` stays on that release. The workflow
+runs the action from its own commit, so either pin covers both. Coming from `@v1`, drop the
+`sticky-comment` and `include-fix-links` inputs if you set them; nothing else needs to change.
 
 That's it! Opening a PR triggers a review; commenting `@bot review` on a PR runs
 another one; replying `@bot` to one of its inline comments starts a conversation on that thread.
@@ -66,6 +68,32 @@ the `@bot review` comment while it runs, replies "Fixed" on the thread of each f
 resolves the thread when its token is allowed to; the default job token is not), and comments with
 a link to the summary when it has nothing new to post. A reply on a thread after "Fixed" brings
 that finding back into the next re-review.
+
+### Other models
+
+To review with a model from OpenAI, Google, OpenRouter, xAI, Mistral, or DeepSeek, set `harness` to
+`opencode`, name the model as `provider/model`, and pass that provider's key:
+
+```yaml
+jobs:
+  review:
+    uses: lararosekelley/review-bot/.github/workflows/review.yml@v2
+    with:
+      harness: opencode
+      model: openai/gpt-6.1-sol
+    secrets:
+      openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+```
+
+The secrets are `anthropic-api-key`, `openai-api-key`, `gemini-api-key`, `openrouter-api-key`,
+`xai-api-key`, `mistral-api-key`, and `deepseek-api-key`. You can pass several and switch `model`
+between them. With opencode, the model gets the same read-only tools as with Claude Code, a repo's
+own `opencode.json` is ignored, and `effort` picks the model's variant of that name when it has one.
+`extra-allowed-tools` entries with no opencode equivalent are left out.
+
+On a small sample of past PRs, `openai/gpt-6.1-sol` found about as many bugs as the default
+`claude-sonnet-5-5`, posted a few more nits, and cost about twice as much per review.
+`claude-opus-5-5` posted the fewest nits at about three times the cost.
 
 ### Permissions
 
@@ -78,24 +106,26 @@ with:
 
 ## Configure
 
-| Input                  | Default                     | What it does                                                                                                                    |
-| ---------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `model`                | `claude-sonnet-5-5`         | Any current model id. `claude-opus-5-5` is more thorough and costs more per PR.                                                 |
-| `effort`               | `high`                      | `low`, `medium`, `high`, `xhigh`, or `""` to leave it unset. `xhigh` is the most thorough and the most expensive.               |
-| `passes`               | `1`                         | Independent review passes, run in parallel. With more than one, only findings raised by at least `min-votes` passes are posted. |
-| `min-votes`            | auto                        | Passes that must raise a finding. Defaults to 1 for a single pass, 2 otherwise.                                                 |
-| `merge-model`          | `claude-haiku-4-5-20251001` | Model that groups duplicate findings across passes.                                                                             |
-| `verify`               | `false`                     | Rechecks each finding before posting. Posts about half as many comments, mostly fewer nits, but misses more real bugs.          |
-| `claude-code-version`  | `2.1.301`                   | Claude Code CLI version the review passes run.                                                                                  |
-| `show-usage`           | `true`                      | Adds the PR's estimated cost and tokens so far to the summary, per review. The job's step summary always has them, per pass.    |
-| `bot-name`             | `Code Review Bot`           | The name it signs the summary with.                                                                                             |
-| `repo-notes-file`      | –                           | Path to your repo-specific notes, e.g. `.github/review-bot/REPO_NOTES.md`.                                                      |
-| `repo-notes`           | –                           | The same thing inline, for a few lines you do not want in a file.                                                               |
-| `trigger-phrase`       | `@bot`                      | A comment with this phrase plus `review` runs a re-review; other mentions get a reply.                                          |
-| `allowed-associations` | `OWNER`                     | Comma-separated author associations allowed to trigger it. No spaces.                                                           |
-| `timeout-minutes`      | `20`                        | Job timeout.                                                                                                                    |
-| `footer`               | advisory notice             | Line appended to the summary. Set to `""` to omit.                                                                              |
-| `extra-allowed-tools`  | –                           | Extra tools appended to the allowlist.                                                                                          |
+| Input                  | Default             | What it does                                                                                                                    |
+| ---------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `harness`              | `claude-code`       | `claude-code` for Claude models, or `opencode` for other providers. See [Other models](#other-models).                          |
+| `model`                | `claude-sonnet-5-5` | Any current model id. `claude-opus-5-5` is more thorough and costs more per PR. With opencode, `provider/model`.                |
+| `effort`               | `high`              | `low`, `medium`, `high`, `xhigh`, or `""` to leave it unset. `xhigh` is the most thorough and the most expensive.               |
+| `passes`               | `1`                 | Independent review passes, run in parallel. With more than one, only findings raised by at least `min-votes` passes are posted. |
+| `min-votes`            | auto                | Passes that must raise a finding. Defaults to 1 for a single pass, 2 otherwise.                                                 |
+| `merge-model`          | auto                | Model that groups duplicate findings across passes. Defaults to `claude-haiku-4-5-20251001`, or to `model` with opencode.       |
+| `verify`               | `true`              | Rechecks each finding before posting. Cuts nits by about 40% without losing real bugs, for about a third more cost.             |
+| `claude-code-version`  | `2.1.301`           | Claude Code CLI version the reviews and replies run, with `harness: claude-code`.                                               |
+| `opencode-version`     | `2.2.5`             | opencode version the reviews and replies run, with `harness: opencode`.                                                         |
+| `show-usage`           | `true`              | Adds the PR's estimated cost and tokens so far to the summary, per review. The job's step summary always has them, per pass.    |
+| `bot-name`             | `Code Review Bot`   | The name it signs the summary with.                                                                                             |
+| `repo-notes-file`      | –                   | Path to your repo-specific notes, e.g. `.github/review-bot/REPO_NOTES.md`.                                                      |
+| `repo-notes`           | –                   | The same thing inline, for a few lines you do not want in a file.                                                               |
+| `trigger-phrase`       | `@bot`              | A comment with this phrase plus `review` runs a re-review; other mentions get a reply.                                          |
+| `allowed-associations` | `OWNER`             | Comma-separated author associations allowed to trigger it. No spaces.                                                           |
+| `timeout-minutes`      | `20`                | Job timeout.                                                                                                                    |
+| `footer`               | advisory notice     | Line appended to the summary. Set to `""` to omit.                                                                              |
+| `extra-allowed-tools`  | –                   | Extra tools appended to the allowlist.                                                                                          |
 
 Need custom triggers - branch filters, a different event set, extra steps in the job? Skip the
 reusable workflow and call the action directly. See [`examples/action.yml`](examples/action.yml).
@@ -126,8 +156,9 @@ and never writes to the PR: [`scripts/review.py`](scripts/review.py) places each
 posts them as one review, and keeps one summary comment per PR up to date. With `passes` above 1,
 the passes run in parallel and a merge step groups duplicates and drops findings too few passes
 raised. A finding that cannot be placed on a changed line is listed in the summary instead. Replies
-to comments go through [`anthropics/claude-code-action`](https://github.com/anthropics/claude-code-action),
-with [`prompts/OUTPUT_CONVERSATION.md`](prompts/OUTPUT_CONVERSATION.md) in place of the review output.
+to comments work the same way, with [`prompts/OUTPUT_CONVERSATION.md`](prompts/OUTPUT_CONVERSATION.md)
+in place of the review output: the model reads the thread and returns the reply's text, and
+`review.py` posts it.
 
 The agent's first step is orientation: it reads `CLAUDE.md` / `AGENTS.md` / `CONTRIBUTING.md` and
 your `.github/workflows/` to learn what CI checks, because **whatever CI checks, it never mentions**.

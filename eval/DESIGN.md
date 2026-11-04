@@ -17,8 +17,10 @@ not committed.
   holds the patch, the control it starts from, the kind of mutation, and the repo's test command.
   The mutations are modeled on real bugs in the source repos: a removed guard, an off-by-one bound,
   unescaped shell interpolation, an ignored parameter or flag, a setting honored by one provider but
-  not another, a step skipped on one of two parallel paths, a wrong but well-typed value, and a
-  destructive default on error. Seeded cases carry most of the
+  not another, a step skipped on one of two parallel paths, a wrong but well-typed value, a
+  destructive default on error, and a side effect left outside a dry-run guard. Some seeds remove
+  part of the PR's own change instead of editing a line, so the defect is an omission that only
+  code outside the diff reveals. Seeded cases carry most of the
   recall measurement, since few historical bugs are plainly visible in their diff, and are scored
   separately from historical ones.
 
@@ -44,9 +46,11 @@ review mode, then `review.py find`, `merge`, optionally `verify` (`--verify`), a
   the PR's last commit with its message, author, and dates kept, so the unseeded head is pruned too.
   Clones live in `~/.cache/review-bot-eval/work`, outside this repo, so the reviewer cannot reach
   the cases.
-- `--passes`, `--min-votes`, and `--merge-model` set the pipeline as the action's inputs do.
-- `claude -p` runs with an isolated `HOME` and `ANTHROPIC_API_KEY`, as in CI, so user settings,
-  plugins, and memory do not leak in. The checkout's own `CLAUDE.md` still loads, as in CI.
+- `--harness`, `--passes`, `--min-votes`, and `--merge-model` set the pipeline as the action's
+  inputs do. With `--harness opencode`, `--model` is `provider/model`.
+- The harness runs with an isolated `HOME` and only the API key its model needs, as in CI, so user
+  settings, logins, plugins, and memory do not leak in. The checkout's own `CLAUDE.md` still loads,
+  as in CI. opencode's model catalog is cached across runs in `~/.cache/review-bot-eval`.
 - A fake `gh` answers `pr view`, `pr diff`, and `pr checks` from the case and the checkout, and
   refuses everything else. Checks always pass.
 - The dry-run post places findings on the diff exactly as a real post would and writes them to
@@ -114,12 +118,12 @@ separate verification pass. A verification pass is judged on noise removed again
   seed the tests catch does not belong in the set.
 
 `labels/triage-sample` was labeled by Claude and used to tune the triage prompt, so it is not a fair
-check. `labels/judge-sample-2` is a fresh sample, from runs the prompt was not tuned on. A separate
-Claude agent labeled it blind, from the code and without the judge's calls (`label_source:
-claude-blind`); it agreed with the judge on 29 of 37. The judge called 3 nits valid, and 3 of the
-4 matches it graded partial the labels called no, so the judge errs lenient: noise and lenient recall
-read slightly better than they are. A person's labels, written into the sheet and read back with
-`--apply`, replace these.
+check. `labels/judge-sample-2` is a fresh sample, from runs the prompt was not tuned on. Two models
+labeled it blind, from the code and without the judge's calls: a Claude agent and GPT-6.1 Sol
+(`model_labels`). Where they disagreed (8 of 37), GPT-6 Astra broke the tie after arguing both
+sides. The judge agrees with the resulting labels (`label_source: models`) on 34 of 37: it called
+one valid finding a nit and another wrong, and graded one unrelated finding a partial match, so its
+errors run both ways. A person's labels, written into the sheet and read back with `--apply`, replace these.
 
 ## Fidelity check
 

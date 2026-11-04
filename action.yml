@@ -1,5 +1,5 @@
 name: "Low-Noise Code Review"
-description: "Rigorous, low-noise AI code review on pull requests. Bring an Anthropic API key; repo-specific notes optional."
+description: "Rigorous, low-noise AI code review on pull requests. Bring an API key for Claude or another model; repo-specific notes optional."
 author: "Lara Kelley"
 
 branding:
@@ -7,19 +7,48 @@ branding:
   color: "purple"
 
 inputs:
+  harness:
+    description: "What runs the model: claude-code (Claude models), or opencode (any provider opencode supports, with model as provider/model)."
+    required: false
+    default: "claude-code"
   anthropic-api-key:
-    description: "Anthropic API key. Store it as a repository secret and pass secrets.ANTHROPIC_API_KEY."
-    required: true
+    description: "Anthropic API key, for Claude models. Store it as a repository secret and pass secrets.ANTHROPIC_API_KEY."
+    required: false
+    default: ""
+  openai-api-key:
+    description: "OpenAI API key, for openai/ models with the opencode harness."
+    required: false
+    default: ""
+  gemini-api-key:
+    description: "Google Gemini API key, for google/ models with the opencode harness."
+    required: false
+    default: ""
+  openrouter-api-key:
+    description: "OpenRouter API key, for openrouter/ models with the opencode harness."
+    required: false
+    default: ""
+  xai-api-key:
+    description: "xAI API key, for xai/ models with the opencode harness."
+    required: false
+    default: ""
+  mistral-api-key:
+    description: "Mistral API key, for mistral/ models with the opencode harness."
+    required: false
+    default: ""
+  deepseek-api-key:
+    description: "DeepSeek API key, for deepseek/ models with the opencode harness."
+    required: false
+    default: ""
   github-token:
     description: "Token used to read the PR and post comments. The default job token is enough."
     required: false
     default: ${{ github.token }}
   model:
-    description: "Model id, e.g. claude-sonnet-5-5, claude-opus-5-5, claude-haiku-4-5-20251001."
+    description: "Model id, e.g. claude-sonnet-5-5 or claude-opus-5-5. With the opencode harness, provider/model, e.g. openai/gpt-6.1-sol or anthropic/claude-sonnet-5-5."
     required: false
     default: "claude-sonnet-5-5"
   effort:
-    description: "Reasoning effort: low, medium, high, or xhigh. Empty to leave it unset."
+    description: "Reasoning effort: low, medium, high, or xhigh. Empty to leave it unset. With opencode it picks the model's variant of that name, or its default if it has none."
     required: false
     default: "high"
   bot-name:
@@ -47,13 +76,13 @@ inputs:
     required: false
     default: ""
   merge-model:
-    description: "Model that groups duplicate findings across passes."
+    description: "Model that groups duplicate findings across passes. Empty for claude-haiku-4-5-20251001 with claude-code, or model with opencode."
     required: false
-    default: "claude-haiku-4-5-20251001"
+    default: ""
   verify:
-    description: "Check each finding against the code before posting, and drop those the check cannot confirm. Fewer nits, but more missed bugs, and one more call per review that has findings."
+    description: "Check each finding against the code before posting, and drop those it can rule out. Fewer nits, at the cost of one more call per review that has findings."
     required: false
-    default: "false"
+    default: "true"
   show-usage:
     description: "Add the review's estimated cost and token counts to the summary comment. The job's step summary always shows them."
     required: false
@@ -63,17 +92,13 @@ inputs:
     required: false
     default: "@bot"
   claude-code-version:
-    description: "Claude Code CLI version the review passes run."
+    description: "Claude Code CLI version the reviews and replies run, with the claude-code harness."
     required: false
     default: "2.1.301"
-  sticky-comment:
-    description: "Replies to comments: reuse one comment per PR instead of adding a new one each run."
+  opencode-version:
+    description: "opencode version the reviews and replies run, with the opencode harness."
     required: false
-    default: "true"
-  include-fix-links:
-    description: "Replies to comments: add a one-click fix link to inline comments."
-    required: false
-    default: "true"
+    default: "2.2.5"
   footer:
     description: "Line appended to the summary. Empty to omit it."
     required: false
@@ -94,13 +119,15 @@ runs:
         COMMENT_BODY: ${{ github.event.comment.body || '' }}
       run: bash "$GITHUB_ACTION_PATH/scripts/mode.sh"
 
-    # Full review: parallel passes return findings as data, and the post step
-    # is the only thing that writes to the pull request.
-    - name: Set up review
-      if: steps.mode.outputs.mode == 'review'
+    # The model only ever returns data: findings for a review, the text of a
+    # reply for a conversation. The post and reply steps are the only things
+    # that write to the pull request.
+    - name: Set up
       shell: bash
       env:
+        HARNESS: ${{ inputs.harness }}
         CLAUDE_CODE_VERSION: ${{ inputs.claude-code-version }}
+        OPENCODE_VERSION: ${{ inputs.opencode-version }}
         WORK_DIR: ${{ runner.temp }}/review-bot
       run: bash "$GITHUB_ACTION_PATH/scripts/setup-review.sh"
 
@@ -136,8 +163,6 @@ runs:
         BOT_NAME: ${{ inputs.bot-name }}
         REPO_NOTES: ${{ inputs.repo-notes }}
         REPO_NOTES_FILE: ${{ inputs.repo-notes-file }}
-        MODEL: ${{ inputs.model }}
-        EFFORT: ${{ inputs.effort }}
         EXTRA_TOOLS: ${{ inputs.extra-allowed-tools }}
         PRIOR_FILE: ${{ runner.temp }}/review-bot/prior.md
         PROMPT_FILE: ${{ runner.temp }}/review-bot/prompt.md
@@ -150,7 +175,14 @@ runs:
       if: steps.mode.outputs.mode == 'review'
       shell: bash
       env:
+        HARNESS: ${{ inputs.harness }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        OPENAI_API_KEY: ${{ inputs.openai-api-key }}
+        GEMINI_API_KEY: ${{ inputs.gemini-api-key }}
+        OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
+        XAI_API_KEY: ${{ inputs.xai-api-key }}
+        MISTRAL_API_KEY: ${{ inputs.mistral-api-key }}
+        DEEPSEEK_API_KEY: ${{ inputs.deepseek-api-key }}
         GH_TOKEN: ${{ inputs.github-token }}
         WORK_DIR: ${{ runner.temp }}/review-bot
         PASSES: ${{ inputs.passes }}
@@ -158,41 +190,61 @@ runs:
         EFFORT: ${{ inputs.effort }}
         TOOLS: ${{ steps.assemble-review.outputs.tools }}
       run: >-
-        python3 "$GITHUB_ACTION_PATH/scripts/review.py" find --prompt-file "$WORK_DIR/prompt.md"
+        python3 "$GITHUB_ACTION_PATH/scripts/review.py" find --harness "$HARNESS" --prompt-file "$WORK_DIR/prompt.md"
         --passes "$PASSES" --model "$MODEL" --effort "$EFFORT" --tools "$TOOLS" --out-dir "$WORK_DIR/passes"
 
     - name: Merge findings
       if: steps.mode.outputs.mode == 'review'
       shell: bash
       env:
+        HARNESS: ${{ inputs.harness }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        OPENAI_API_KEY: ${{ inputs.openai-api-key }}
+        GEMINI_API_KEY: ${{ inputs.gemini-api-key }}
+        OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
+        XAI_API_KEY: ${{ inputs.xai-api-key }}
+        MISTRAL_API_KEY: ${{ inputs.mistral-api-key }}
+        DEEPSEEK_API_KEY: ${{ inputs.deepseek-api-key }}
         WORK_DIR: ${{ runner.temp }}/review-bot
         MIN_VOTES: ${{ inputs.min-votes || '0' }}
-        MERGE_MODEL: ${{ inputs.merge-model }}
+        MERGE_MODEL: ${{ inputs.merge-model || (inputs.harness == 'opencode' && inputs.model) || 'claude-haiku-4-5-20251001' }}
       run: >-
-        python3 "$GITHUB_ACTION_PATH/scripts/review.py" merge --in-dir "$WORK_DIR/passes"
+        python3 "$GITHUB_ACTION_PATH/scripts/review.py" merge --harness "$HARNESS" --in-dir "$WORK_DIR/passes"
         --min-votes "$MIN_VOTES" --merge-model "$MERGE_MODEL" --out "$WORK_DIR/merged.json"
 
     - name: Verify findings
       if: steps.mode.outputs.mode == 'review' && inputs.verify == 'true'
       shell: bash
       env:
+        HARNESS: ${{ inputs.harness }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        OPENAI_API_KEY: ${{ inputs.openai-api-key }}
+        GEMINI_API_KEY: ${{ inputs.gemini-api-key }}
+        OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
+        XAI_API_KEY: ${{ inputs.xai-api-key }}
+        MISTRAL_API_KEY: ${{ inputs.mistral-api-key }}
+        DEEPSEEK_API_KEY: ${{ inputs.deepseek-api-key }}
         GH_TOKEN: ${{ inputs.github-token }}
         WORK_DIR: ${{ runner.temp }}/review-bot
         MODEL: ${{ inputs.model }}
         EFFORT: ${{ inputs.effort }}
         TOOLS: ${{ steps.assemble-review.outputs.tools }}
       run: >-
-        python3 "$GITHUB_ACTION_PATH/scripts/review.py" verify --merged "$WORK_DIR/merged.json"
+        python3 "$GITHUB_ACTION_PATH/scripts/review.py" verify --harness "$HARNESS" --merged "$WORK_DIR/merged.json"
         --model "$MODEL" --effort "$EFFORT" --tools "$TOOLS"
 
     - name: Post review
       if: steps.mode.outputs.mode == 'review'
       shell: bash
       env:
-        # Passed only so the post step can redact it from anything it posts.
+        # Passed only so the post step can redact them from anything it posts.
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        OPENAI_API_KEY: ${{ inputs.openai-api-key }}
+        GEMINI_API_KEY: ${{ inputs.gemini-api-key }}
+        OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
+        XAI_API_KEY: ${{ inputs.xai-api-key }}
+        MISTRAL_API_KEY: ${{ inputs.mistral-api-key }}
+        DEEPSEEK_API_KEY: ${{ inputs.deepseek-api-key }}
         GH_TOKEN: ${{ inputs.github-token }}
         WORK_DIR: ${{ runner.temp }}/review-bot
         PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
@@ -217,7 +269,20 @@ runs:
         python3 "$GITHUB_ACTION_PATH/scripts/review.py" react --repo "$GITHUB_REPOSITORY"
         --comment-id "$COMMENT_ID" --content confused --ack-file "$WORK_DIR/ack.json"
 
-    # Replies to comments stay conversational, through claude-code-action.
+    # A reply acknowledges the comment at once, and swaps the reaction for a
+    # thumbs up once posted (or a confused face on failure).
+    - name: Acknowledge the comment
+      if: steps.mode.outputs.mode == 'conversation'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        WORK_DIR: ${{ runner.temp }}/review-bot
+        COMMENT_ID: ${{ github.event.comment.id }}
+        KIND: ${{ github.event_name == 'pull_request_review_comment' && 'review' || 'issue' }}
+      run: >-
+        python3 "$GITHUB_ACTION_PATH/scripts/review.py" react --repo "$GITHUB_REPOSITORY"
+        --comment-id "$COMMENT_ID" --kind "$KIND" --content eyes --ack-file "$WORK_DIR/ack.json"
+
     - id: assemble-conversation
       if: steps.mode.outputs.mode == 'conversation'
       shell: bash
@@ -226,10 +291,8 @@ runs:
         BOT_NAME: ${{ inputs.bot-name }}
         REPO_NOTES: ${{ inputs.repo-notes }}
         REPO_NOTES_FILE: ${{ inputs.repo-notes-file }}
-        FOOTER: ${{ inputs.footer }}
-        MODEL: ${{ inputs.model }}
-        EFFORT: ${{ inputs.effort }}
         EXTRA_TOOLS: ${{ inputs.extra-allowed-tools }}
+        PROMPT_FILE: ${{ runner.temp }}/review-bot/prompt.md
         PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         PR_TITLE: ${{ github.event.pull_request.title || github.event.issue.title || '' }}
         PR_DRAFT: ${{ github.event.pull_request.draft || false }}
@@ -237,12 +300,38 @@ runs:
 
     - name: Reply
       if: steps.mode.outputs.mode == 'conversation'
-      uses: anthropics/claude-code-action@v1.0.217
-      with:
-        anthropic_api_key: ${{ inputs.anthropic-api-key }}
-        github_token: ${{ inputs.github-token }}
-        use_sticky_comment: ${{ inputs.sticky-comment }}
-        include_fix_links: ${{ inputs.include-fix-links }}
-        classify_inline_comments: "true"
-        prompt: ${{ steps.assemble-conversation.outputs.prompt }}
-        claude_args: ${{ steps.assemble-conversation.outputs.claude-args }}
+      shell: bash
+      env:
+        HARNESS: ${{ inputs.harness }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        OPENAI_API_KEY: ${{ inputs.openai-api-key }}
+        GEMINI_API_KEY: ${{ inputs.gemini-api-key }}
+        OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
+        XAI_API_KEY: ${{ inputs.xai-api-key }}
+        MISTRAL_API_KEY: ${{ inputs.mistral-api-key }}
+        DEEPSEEK_API_KEY: ${{ inputs.deepseek-api-key }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        WORK_DIR: ${{ runner.temp }}/review-bot
+        PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        COMMENT_ID: ${{ github.event.comment.id }}
+        KIND: ${{ github.event_name == 'pull_request_review_comment' && 'review' || 'issue' }}
+        MODEL: ${{ inputs.model }}
+        EFFORT: ${{ inputs.effort }}
+        TOOLS: ${{ steps.assemble-conversation.outputs.tools }}
+        FOOTER: ${{ inputs.footer }}
+      run: >-
+        python3 "$GITHUB_ACTION_PATH/scripts/review.py" reply --harness "$HARNESS" --prompt-file "$WORK_DIR/prompt.md"
+        --repo "$GITHUB_REPOSITORY" --pr "$PR_NUMBER" --comment-id "$COMMENT_ID" --kind "$KIND"
+        --model "$MODEL" --effort "$EFFORT" --tools "$TOOLS" --footer "$FOOTER" --ack-file "$WORK_DIR/ack.json"
+
+    - name: Report a failed reply
+      if: failure() && steps.mode.outputs.mode == 'conversation'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        WORK_DIR: ${{ runner.temp }}/review-bot
+        COMMENT_ID: ${{ github.event.comment.id }}
+        KIND: ${{ github.event_name == 'pull_request_review_comment' && 'review' || 'issue' }}
+      run: >-
+        python3 "$GITHUB_ACTION_PATH/scripts/review.py" react --repo "$GITHUB_REPOSITORY"
+        --comment-id "$COMMENT_ID" --kind "$KIND" --content confused --ack-file "$WORK_DIR/ack.json"

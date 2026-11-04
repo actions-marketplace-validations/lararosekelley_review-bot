@@ -5,6 +5,48 @@ What changed in each version, for the people using the action. Each section is d
 publishes the section matching the tag as the GitHub release notes, so headings must stay
 `## X.Y.Z - YYYY-MM-DD`.
 
+## 2.0.0 - 2026-11-03
+
+### Added
+
+- Reviews can run on models from OpenAI, Google, OpenRouter, xAI, Mistral, and DeepSeek. Set
+  `harness: opencode`, name the model as `provider/model` (for example `openai/gpt-6.1-sol`), and
+  pass that provider's key. Each provider has its own key input, so you can keep several and switch
+  `model` between them. The model gets the same read-only tools as with Claude, and a repo's own
+  opencode config is ignored. `opencode-version` pins the version.
+
+### Changed
+
+- Replies to comments run the same way as reviews: the model reads the thread and returns its reply,
+  and the action posts it in the thread. A reply no longer reuses one sticky comment or adds fix
+  links, and it reacts to the comment while it runs, like a re-review.
+- `anthropic-api-key` is optional, since another provider's key can take its place.
+- `merge-model` defaults to `model` when `harness` is `opencode`.
+
+### Removed
+
+- The `sticky-comment` and `include-fix-links` inputs. Remove them from your workflow if you set
+  them; nothing else needs to change. Move from `@v1` to `@v2` to upgrade.
+
+## 1.5.0 - 2026-11-02
+
+### Changed
+
+- Reviews post fewer comments, mostly fewer nits, and find as many real bugs. On the eval set,
+  comments per PR fell by about a quarter, and the share of PRs with nothing worth changing that got
+  no comments rose from about 1 in 5 to about 2 in 5.
+- A new `verify` input, on by default, checks each finding against the code before posting and
+  drops the ones it can rule out. It adds one call to each review that has findings, so a review
+  costs about a third more. Set `verify: false` to skip it. The summary says how many findings it
+  dropped, and the job log lists them.
+- Architecture, complexity, and missing-coverage findings must name what goes wrong because of them,
+  so the reviewer leaves out structural preferences and requests for tests on code that works.
+
+### Fixed
+
+- The reusable workflow now runs the action from its own release. Pinning an exact release, such as
+  `@v1.5.0`, now pins both; before, the action always came from `@v1`.
+
 ## 1.4.0 - 2026-11-01
 
 ### Fixed
